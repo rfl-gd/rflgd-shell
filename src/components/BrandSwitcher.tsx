@@ -30,24 +30,31 @@ const STATUS_LABELS: Record<string, string> = {
 }
 
 const StackIcon = ({ size = 22 }: { size?: number }) => (
-  <svg width={size} height={(size * 30) / 32} viewBox="0 0 32 30" fill="none" aria-hidden className="shrink-0">
+  <svg width={size} height={(size * 30) / 32} viewBox="0 0 32 30" fill="none" aria-hidden style={{ flexShrink: 0 }}>
     <path d="M32,0 H23 A3,3 0 0,0 20,3 A3,3 0 0,0 23,6 H32 Z" fill="#B09A6A" />
     <path d="M32,11 H12 A2,2 0 0,0 10,13 A2,2 0 0,0 12,15 H32 Z" fill="#B09A6A" opacity="0.45" />
     <path d="M32,23 H1.5 A1.5,1.5 0 0,0 0,24.5 A1.5,1.5 0 0,0 1.5,26 H32 Z" fill="#B09A6A" opacity="0.25" />
   </svg>
 )
 
-export function BrandSwitcher() {
+export function BrandSwitcher({ variant = 'header' }: { variant?: 'header' | 'sidebar' }) {
   const config = loadAppConfig()
   const [shell, setShell] = useState<ShellInfo | null>(null)
+  const [error, setError] = useState(false)
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
     let cancel = false
     fetch('/api/shell-info', { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => !cancel && setShell(d))
-      .catch(() => {})
+      .then((r) => {
+        if (r.status === 401 || r.status === 403) {
+          setError(true)
+          return null
+        }
+        return r.ok ? r.json() : null
+      })
+      .then((d) => { if (!cancel && d) setShell(d) })
+      .catch(() => setError(true))
     return () => { cancel = true }
   }, [])
 
@@ -68,127 +75,210 @@ export function BrandSwitcher() {
   const catalogUrl = shell?.catalogUrl ?? 'https://app.rfl.gd/catalog'
   const orgName = shell?.org?.name ?? null
 
-  return (
-    <div className="relative" data-brand-switcher>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded px-2 py-1 transition hover:bg-[var(--brand-accent-soft)]"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label="Reflagged Apps wechseln"
-      >
-        <StackIcon size={22} />
-        <span className="flex items-baseline gap-1.5">
-          <span className="font-display text-lg font-bold leading-none text-[var(--brand-fg)]">
-            {config.appLabel}
-          </span>
-          <span className="text-xs leading-none text-[var(--brand-muted)]">rfl.gd</span>
-        </span>
-        {orgName ? (
-          <span className="ml-2 rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-0.5 text-[10px] uppercase tracking-wide text-[var(--brand-muted)]">
-            {orgName}
-          </span>
-        ) : null}
-        <span aria-hidden className={`text-[10px] text-[var(--brand-muted)] transition ${open ? 'rotate-180' : ''}`}>
-          ▾
-        </span>
-      </button>
+  const compact = variant === 'sidebar'
 
-      {open ? (
-        <div
-          role="menu"
-          className="absolute left-0 top-full z-30 mt-2 w-80 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] p-2 shadow-lg"
-        >
-          <p className="px-3 pb-1 pt-2 text-[10px] uppercase tracking-widest text-[var(--brand-muted)]">
-            Workspace
-          </p>
-          {shell?.org ? (
-            <div className="flex items-center gap-3 rounded-md px-3 py-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-[var(--brand-accent-soft)] font-display text-sm font-semibold text-[var(--brand-accent)]">
-                {shell.org.name.slice(0, 1).toUpperCase()}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium text-[var(--brand-fg)]">
-                  {shell.org.name}
-                </div>
-                <div className="text-[11px] text-[var(--brand-muted)]">
-                  {ready.length} Service{ready.length === 1 ? '' : 's'} aktiv
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="px-3 py-2 text-sm text-[var(--brand-muted)]">
-              {shell === null ? 'wird geladen…' : 'kein Workspace verfügbar'}
-            </div>
-          )}
-
-          <hr className="my-1 border-[var(--brand-border)]" />
-
-          <p className="px-3 pb-1 pt-2 text-[10px] uppercase tracking-widest text-[var(--brand-muted)]">
-            Apps
-          </p>
-          {ready.length === 0 ? (
-            <p className="px-3 py-2 text-sm text-[var(--brand-muted)]">
-              Noch keine aktiven Services.
-            </p>
-          ) : (
-            <ul className="space-y-1">
-              {ready.map((b) => {
-                const active = b.service === config.appKey
-                return (
-                  <li key={b.id}>
-                    <a
-                      href={b.url ?? '#'}
-                      className={`flex items-center justify-between gap-2 rounded-md px-3 py-2 text-sm transition hover:bg-[var(--brand-accent-soft)] ${
-                        active ? 'bg-[var(--brand-accent-soft)]' : ''
-                      }`}
-                    >
-                      <span className={active ? 'font-medium text-[var(--brand-accent)]' : 'text-[var(--brand-fg)]'}>
-                        {b.label}
-                      </span>
-                      {active ? (
-                        <span className="text-[9px] uppercase tracking-widest text-[var(--brand-accent)]">
-                          aktuell
-                        </span>
-                      ) : null}
-                    </a>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-
-          {provisioning.length > 0 ? (
-            <>
-              <p className="mt-3 px-3 pb-1 text-[10px] uppercase tracking-widest text-[var(--brand-muted)]">
-                In Vorbereitung
-              </p>
-              <ul className="space-y-1">
-                {provisioning.map((b) => (
-                  <li key={b.id} className="flex items-center justify-between rounded-md px-3 py-2 text-sm text-[var(--brand-muted)]">
-                    <span>{b.label}</span>
-                    <span className="text-[10px]">{STATUS_LABELS[b.status]}</span>
-                  </li>
-                ))}
-              </ul>
-            </>
-          ) : null}
-
-          <hr className="my-1 border-[var(--brand-border)]" />
-
-          <a
-            href={catalogUrl}
-            className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-[var(--brand-fg)] transition hover:bg-[var(--brand-accent-soft)]"
-          >
-            <span className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--brand-border)] text-[var(--brand-accent)]">＋</span>
-            <span className="flex-1">
-              <span className="block text-sm">Service buchen</span>
-              <span className="block text-[11px] text-[var(--brand-muted)]">Plattform-Katalog</span>
-            </span>
-          </a>
+  const trigger = (
+    <button
+      type="button"
+      onClick={() => setOpen((v) => !v)}
+      aria-haspopup="menu"
+      aria-expanded={open}
+      aria-label="Reflagged Apps wechseln"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: compact ? 6 : 8,
+        cursor: 'pointer',
+        background: 'transparent',
+        border: 'none',
+        padding: compact ? '8px 12px 10px' : '4px 8px',
+        borderRadius: compact ? 6 : 4,
+        width: compact ? '100%' : 'auto',
+        textAlign: 'left',
+        fontFamily: 'inherit',
+        color: 'inherit',
+        marginBottom: compact ? 8 : 0,
+        borderBottom: compact ? '1px solid rgba(176,154,106,0.12)' : 'none',
+      }}
+    >
+      <StackIcon size={compact ? 20 : 22} />
+      <div style={{ flex: 1, minWidth: 0, lineHeight: 1.15 }}>
+        <div style={{
+          fontFamily: "'Red Hat Display', system-ui, sans-serif",
+          fontWeight: 700,
+          fontSize: compact ? 13 : 17,
+          letterSpacing: '-0.01em',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          color: '#2C1E14',
+        }}>
+          {config.appLabel}
         </div>
+        <div style={{
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: compact ? 9 : 10.5,
+          letterSpacing: '0.1em',
+          color: '#7A6A58',
+          marginTop: 2,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}>
+          {orgName ? `${orgName} · rfl.gd` : 'rfl.gd'}
+        </div>
+      </div>
+      {orgName && !compact ? (
+        <span style={{
+          fontSize: 10,
+          textTransform: 'uppercase',
+          letterSpacing: '0.06em',
+          padding: '2px 8px',
+          borderRadius: 99,
+          border: '1px solid rgba(44,30,20,0.1)',
+          background: 'rgba(44,30,20,0.03)',
+          color: '#7A6A58',
+          whiteSpace: 'nowrap',
+        }}>
+          {orgName}
+        </span>
       ) : null}
+      <span aria-hidden style={{ color: '#7A6A58', fontSize: 10, marginLeft: compact ? 2 : 4 }}>
+        {open ? '▴' : '▾'}
+      </span>
+    </button>
+  )
+
+  const popover = open ? (
+    <div
+      role="menu"
+      data-brand-switcher
+      style={{
+        position: compact ? 'fixed' : 'absolute',
+        left: compact ? 280 : 0,
+        top: compact ? 'auto' : '100%',
+        zIndex: compact ? 2147483646 : 30,
+        marginTop: compact ? 0 : 8,
+        width: 280,
+        borderRadius: 14,
+        border: '1px solid rgba(176,154,106,0.16)',
+        background: '#FFFFFF',
+        padding: 8,
+        boxShadow: '0 1px 0 rgba(176,154,106,0.08), 0 12px 40px rgba(0,0,0,0.15)',
+      }}
+    >
+      {/* Workspace */}
+      <div style={{ padding: '10px 12px 6px', fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#7A6A58', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+        Workspace
+      </div>
+      {shell?.org ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', borderRadius: 8 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(176,154,106,0.15)', color: '#B09A6A', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Red Hat Display', system-ui, sans-serif", fontWeight: 600 }}>
+            {shell.org.name.slice(0, 1).toUpperCase()}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 500, fontSize: 13.5, color: '#2C1E14' }}>{shell.org.name}</div>
+            <div style={{ fontSize: 11.5, color: '#7A6A58', marginTop: 2 }}>{ready.length} Service{ready.length === 1 ? '' : 's'} aktiv</div>
+          </div>
+        </div>
+      ) : error ? (
+        <a href="/api/oidc/signin" style={{ display: 'block', padding: '8px 12px 12px', fontSize: 13, color: '#B09A6A', textDecoration: 'none' }}>
+          Anmelden, um Services zu sehen →
+        </a>
+      ) : (
+        <div style={{ padding: '8px 12px 12px', fontSize: 13, color: '#7A6A58' }}>
+          {shell === null ? 'wird geladen…' : 'kein Workspace verfügbar'}
+        </div>
+      )}
+
+      <hr style={{ border: 'none', borderTop: '1px solid rgba(176,154,106,0.12)', margin: '6px 0' }} />
+
+      {/* Apps */}
+      <div style={{ padding: '6px 12px 6px', fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#7A6A58', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+        Apps
+      </div>
+      {ready.length === 0 ? (
+        <div style={{ padding: '8px 12px 12px', fontSize: 13, color: '#7A6A58' }}>
+          {error ? 'Zum Anzeigen bitte anmelden.' : 'Noch keine aktiven Services.'}
+        </div>
+      ) : (
+        ready.map((b) => {
+          const active = b.service === config.appKey
+          return (
+            <a key={b.id} href={b.url ?? '#'} role="menuitem" style={{
+              display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 8,
+              textDecoration: 'none', color: '#2C1E14',
+              background: active ? 'rgba(176,154,106,0.15)' : 'transparent',
+            }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: active ? 'rgba(176,154,106,0.25)' : 'rgba(176,138,122,0.25)', color: active ? '#B09A6A' : '#B08A7A', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Red Hat Display', system-ui, sans-serif", fontWeight: 600 }}>
+                {b.label.slice(0, 1).toUpperCase()}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 500, fontSize: 13.5 }}>{b.label}</div>
+                <div style={{ fontSize: 11.5, color: '#7A6A58', marginTop: 2 }}>
+                  {active ? 'aktuell geöffnet' : (b.url ?? '').replace(/^https?:\/\//, '')}
+                </div>
+              </div>
+              {active ? (
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: '#B09A6A', padding: '2px 6px', background: 'rgba(176,154,106,0.15)', borderRadius: 4, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                  aktiv
+                </span>
+              ) : null}
+            </a>
+          )
+        })
+      )}
+
+      {provisioning.length > 0 ? (
+        <>
+          <div style={{ marginTop: 12, padding: '6px 12px 6px', fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#7A6A58', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+            In Vorbereitung
+          </div>
+          {provisioning.map((b) => (
+            <div key={b.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', fontSize: 13, color: '#7A6A58' }}>
+              <span>{b.label}</span>
+              <span style={{ fontSize: 10 }}>{STATUS_LABELS[b.status]}</span>
+            </div>
+          ))}
+        </>
+      ) : null}
+
+      <hr style={{ border: 'none', borderTop: '1px solid rgba(176,154,106,0.12)', margin: '6px 0' }} />
+
+      {/* Catalog link */}
+      <a href={catalogUrl} role="menuitem" style={{
+        display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 8,
+        textDecoration: 'none', color: '#2C1E14',
+      }}>
+        <div style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid rgba(176,154,106,0.16)', color: '#B09A6A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          ↗
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 500, fontSize: 13.5 }}>Reflagged Plattform</div>
+          <div style={{ fontSize: 11.5, color: '#7A6A58', marginTop: 2 }}>Katalog & Settings</div>
+        </div>
+      </a>
+
+      {/* Signout */}
+      <a href="/api/oidc/signout" role="menuitem" style={{
+        display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 8,
+        textDecoration: 'none', color: '#2C1E14',
+      }}>
+        <div style={{ width: 32, height: 32, borderRadius: 8, background: '#F5F0EB', color: '#7A6A58', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          ⏻
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 500, fontSize: 13.5 }}>Logout</div>
+          <div style={{ fontSize: 11.5, color: '#7A6A58', marginTop: 2 }}>aus allen Services abmelden</div>
+        </div>
+      </a>
+    </div>
+  ) : null
+
+  return (
+    <div data-brand-switcher style={{ position: 'relative' }}>
+      {trigger}
+      {popover}
     </div>
   )
 }
