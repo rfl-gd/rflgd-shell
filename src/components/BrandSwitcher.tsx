@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { loadAppConfig } from '../config'
 
 type Booking = {
@@ -42,6 +43,8 @@ export function BrandSwitcher({ variant = 'header' }: { variant?: 'header' | 'si
   const [shell, setShell] = useState<ShellInfo | null>(null)
   const [error, setError] = useState(false)
   const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  const triggerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let cancel = false
@@ -57,6 +60,22 @@ export function BrandSwitcher({ variant = 'header' }: { variant?: 'header' | 'si
       .catch(() => setError(true))
     return () => { cancel = true }
   }, [])
+
+  // Track trigger position for sidebar portal popover
+  useEffect(() => {
+    if (!compact || !open || !triggerRef.current) return
+    const update = () => {
+      const r = triggerRef.current?.getBoundingClientRect()
+      if (r) setPos({ top: r.top, left: r.right + 8 })
+    }
+    update()
+    window.addEventListener('resize', update)
+    window.addEventListener('scroll', update, true)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update, true)
+    }
+  }, [compact, open])
 
   useEffect(() => {
     if (!open) return
@@ -78,6 +97,7 @@ export function BrandSwitcher({ variant = 'header' }: { variant?: 'header' | 'si
   const compact = variant === 'sidebar'
 
   const trigger = (
+    <div ref={triggerRef}>
     <button
       type="button"
       onClick={() => setOpen((v) => !v)}
@@ -147,6 +167,7 @@ export function BrandSwitcher({ variant = 'header' }: { variant?: 'header' | 'si
         {open ? '▴' : '▾'}
       </span>
     </button>
+    </div>
   )
 
   const popover = open ? (
@@ -154,10 +175,10 @@ export function BrandSwitcher({ variant = 'header' }: { variant?: 'header' | 'si
       role="menu"
       data-brand-switcher
       style={{
-        position: compact ? 'fixed' : 'absolute',
-        left: compact ? 280 : 0,
-        top: compact ? 'auto' : '100%',
-        zIndex: compact ? 2147483646 : 30,
+        position: compact && pos ? 'fixed' : 'absolute',
+        left: compact && pos ? pos.left : 0,
+        top: compact && pos ? pos.top : '100%',
+        zIndex: compact ? 2147483647 : 30,
         marginTop: compact ? 0 : 8,
         width: 280,
         borderRadius: 14,
@@ -278,7 +299,7 @@ export function BrandSwitcher({ variant = 'header' }: { variant?: 'header' | 'si
   return (
     <div data-brand-switcher style={{ position: 'relative' }}>
       {trigger}
-      {popover}
+      {compact ? (typeof document !== 'undefined' ? createPortal(popover, document.body) : popover) : popover}
     </div>
   )
 }
