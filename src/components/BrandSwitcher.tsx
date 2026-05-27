@@ -80,14 +80,21 @@ export function BrandSwitcher() {
     }
   }, [])
 
-  // Track trigger position for portal popover — anchor below-left.
+  const handleToggle = () => {
+    if (!open && triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect()
+      setPos({ top: r.bottom + 4, left: r.left })
+    }
+    setOpen((v) => !v)
+  }
+
+  // Keep position in sync on resize/scroll while open
   useEffect(() => {
     if (!open || !triggerRef.current) return
     const update = () => {
       const r = triggerRef.current?.getBoundingClientRect()
-      if (r) setPos({ top: r.bottom + 8, left: r.left })
+      if (r) setPos({ top: r.bottom + 4, left: r.left })
     }
-    update()
     window.addEventListener('resize', update)
     window.addEventListener('scroll', update, true)
     return () => {
@@ -116,7 +123,7 @@ export function BrandSwitcher() {
     <div ref={triggerRef}>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={handleToggle}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Reflagged Apps wechseln"
