@@ -44,7 +44,10 @@ export function BrandSwitcher({ variant = 'header' }: { variant?: 'header' | 'si
   const [error, setError] = useState(false)
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  const [mounted, setMounted] = useState(false)
   const triggerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
     let cancel = false
@@ -299,7 +302,7 @@ export function BrandSwitcher({ variant = 'header' }: { variant?: 'header' | 'si
   return (
     <div data-brand-switcher style={{ position: 'relative' }}>
       {trigger}
-      {compact ? (typeof document !== 'undefined' ? createPortal(popover, document.body) : popover) : popover}
+      {compact && mounted && pos ? createPortal(popover, document.body) : !compact ? popover : null}
     </div>
   )
 }
