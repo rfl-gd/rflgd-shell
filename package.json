@@ -1,5 +1,5 @@
 {
-  "name": "@rfl-gd/shell",
+  "name": "@reflagged/shell",
   "version": "1.0.0",
   "description": "Shared app shell for Reflagged services — OIDC auth, SSO, app switcher",
   "type": "module",

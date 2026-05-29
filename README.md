@@ -1,4 +1,4 @@
-# @rfl-gd/shell
+# @reflagged/shell
 
 Shared app shell for Reflagged services. Provides:
 
@@ -14,7 +14,7 @@ it in-app via Next's `transpilePackages` — there is no build/bundle step.
 ## Install
 
 ```bash
-pnpm add @rfl-gd/shell
+pnpm add @reflagged/shell
 ```
 
 In each consuming Next.js app, add the package to `transpilePackages`
@@ -24,7 +24,7 @@ component, that Next must compile):
 ```ts
 // next.config.ts
 const nextConfig = {
-  transpilePackages: ['@rfl-gd/shell'],
+  transpilePackages: ['@reflagged/shell'],
 }
 ```
 
@@ -41,12 +41,12 @@ Configure via env vars (`NEXT_PUBLIC_*` are inlined at **build** time):
 ## Entry points
 
 ```ts
-import { BrandSwitcher } from '@rfl-gd/shell/components/BrandSwitcher'
-import { loadAppConfig } from '@rfl-gd/shell/config'
-import { OIDC_COOKIE, loadOidcEnv } from '@rfl-gd/shell/auth/oidc-config'
-import { verifySessionCookie } from '@rfl-gd/shell/auth/oidc-cookie'
-import { refreshAccessToken } from '@rfl-gd/shell/auth/oidc-refresh'
-import { nextauthStrategy } from '@rfl-gd/shell/auth/nextauth-strategy'
+import { BrandSwitcher } from '@reflagged/shell/components/BrandSwitcher'
+import { loadAppConfig } from '@reflagged/shell/config'
+import { OIDC_COOKIE, loadOidcEnv } from '@reflagged/shell/auth/oidc-config'
+import { verifySessionCookie } from '@reflagged/shell/auth/oidc-cookie'
+import { refreshAccessToken } from '@reflagged/shell/auth/oidc-refresh'
+import { nextauthStrategy } from '@reflagged/shell/auth/nextauth-strategy'
 ```
 
 ### Per-app route files + middleware
@@ -55,14 +55,14 @@ Each app keeps thin wrappers that re-export the handlers:
 
 ```ts
 // src/app/api/oidc/signin/route.ts
-export { GET, dynamic, runtime } from '@rfl-gd/shell/api/oidc-signin'
+export { GET, dynamic, runtime } from '@reflagged/shell/api/oidc-signin'
 
 // src/middleware.ts
-export { default, config } from '@rfl-gd/shell/middleware'
+export { default, config } from '@reflagged/shell/middleware'
 ```
 
-Other API re-exports: `@rfl-gd/shell/api/oidc-callback`,
-`@rfl-gd/shell/api/oidc-signout`, `@rfl-gd/shell/api/shell-info`.
+Other API re-exports: `@reflagged/shell/api/oidc-callback`,
+`@reflagged/shell/api/oidc-signout`, `@reflagged/shell/api/shell-info`.
 
 ## Local development (live-edit against a consumer)
 
@@ -74,7 +74,7 @@ the consumer (all Reflagged repos sit side-by-side under `~/Development/`):
 // <app>/package.json — DEV ONLY, do not commit
 "pnpm": {
   "overrides": {
-    "@rfl-gd/shell": "link:../rflgd-shell"
+    "@reflagged/shell": "link:../rflgd-shell"
   }
 }
 ```
