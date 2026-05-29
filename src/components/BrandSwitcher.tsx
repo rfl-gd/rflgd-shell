@@ -295,7 +295,9 @@ export function BrandSwitcher() {
       <div style={sectionLabelStyle}>Apps</div>
       {error && !shell ? (
         <a
-          href="/api/oidc/signin"
+          href={`/api/oidc/signin?callbackUrl=${encodeURIComponent(
+            typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/',
+          )}`}
           style={{ display: 'block', padding: '8px 12px 12px', fontSize: 13, color: '#B09A6A', textDecoration: 'none' }}
         >
           Anmelden, um Services zu sehen →
