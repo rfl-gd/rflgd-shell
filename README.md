@@ -1,4 +1,4 @@
-# rflgd-shell
+# @rfl-gd/shell
 
 Shared app shell for Reflagged services. Provides:
 
@@ -8,27 +8,88 @@ Shared app shell for Reflagged services. Provides:
 - `BrandSwitcher` component (app switcher dropdown)
 - Admin route SSO enforcement middleware
 
-## Usage
+Published as a **public npm package of raw TS/TSX source**. Consumers transpile
+it in-app via Next's `transpilePackages` — there is no build/bundle step.
 
-Add as git submodule:
+## Install
 
 ```bash
-git submodule add git@github.com:rfl-gd/rflgd-shell.git src/rflgd-shell
+pnpm add @rfl-gd/shell
 ```
 
-Configure via env vars:
+In each consuming Next.js app, add the package to `transpilePackages`
+(**required** — the package ships `.ts/.tsx` source, incl. a `'use client'`
+component, that Next must compile):
+
+```ts
+// next.config.ts
+const nextConfig = {
+  transpilePackages: ['@rfl-gd/shell'],
+}
+```
+
+Do **not** add it to `serverExternalPackages` — it must be transpiled.
+
+Configure via env vars (`NEXT_PUBLIC_*` are inlined at **build** time):
 
 | Variable | Purpose |
 |----------|---------|
-| `NEXT_PUBLIC_RFLGD_APP_KEY` | App key matching platform catalog |
+| `NEXT_PUBLIC_RFLGD_APP_KEY` | App key matching the platform catalog `service` value (highlights the current app as "aktuell") |
 | `NEXT_PUBLIC_RFLGD_APP_LABEL` | Display name in BrandSwitcher |
 | `RFLGD_DEFAULT_USER_ROLE` | Role for auto-created users (default: `user`) |
 
-## Per-app route files
+## Entry points
 
-Each app creates thin route wrappers that re-export from rflgd-shell:
+```ts
+import { BrandSwitcher } from '@rfl-gd/shell/components/BrandSwitcher'
+import { loadAppConfig } from '@rfl-gd/shell/config'
+import { OIDC_COOKIE, loadOidcEnv } from '@rfl-gd/shell/auth/oidc-config'
+import { verifySessionCookie } from '@rfl-gd/shell/auth/oidc-cookie'
+import { refreshAccessToken } from '@rfl-gd/shell/auth/oidc-refresh'
+import { nextauthStrategy } from '@rfl-gd/shell/auth/nextauth-strategy'
+```
+
+### Per-app route files + middleware
+
+Each app keeps thin wrappers that re-export the handlers:
 
 ```ts
 // src/app/api/oidc/signin/route.ts
-export { GET, dynamic, runtime } from '@/rflgd-shell/src/lib/api/oidc-signin'
+export { GET, dynamic, runtime } from '@rfl-gd/shell/api/oidc-signin'
+
+// src/middleware.ts
+export { default, config } from '@rfl-gd/shell/middleware'
 ```
+
+Other API re-exports: `@rfl-gd/shell/api/oidc-callback`,
+`@rfl-gd/shell/api/oidc-signout`, `@rfl-gd/shell/api/shell-info`.
+
+## Local development (live-edit against a consumer)
+
+A published package is frozen in `node_modules`. To iterate on the shell and a
+consuming app at the same time, add a **local, uncommitted** pnpm override in
+the consumer (all Reflagged repos sit side-by-side under `~/Development/`):
+
+```jsonc
+// <app>/package.json — DEV ONLY, do not commit
+"pnpm": {
+  "overrides": {
+    "@rfl-gd/shell": "link:../rflgd-shell"
+  }
+}
+```
+
+Then `pnpm install`. Edits in `rflgd-shell/src` are picked up live (still
+transpiled via `transpilePackages`). **Remove the override before committing** —
+`link:../rflgd-shell` does not exist in the Coolify build context and would
+break the build.
+
+## Releasing
+
+Raw source, no build. To publish a new version:
+
+1. Bump `version` in `package.json`.
+2. Commit, then `git tag vX.Y.Z && git push --tags`.
+3. The `.github/workflows/publish.yml` workflow typechecks, verifies the tag
+   matches `version`, and runs `npm publish --access public` (needs the
+   `NPM_TOKEN` repo secret).
