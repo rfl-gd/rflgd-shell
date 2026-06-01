@@ -17,6 +17,12 @@ export async function signSessionCookie(
     accessToken?: string | null
     refreshToken?: string | null
     accessTokenExpiresAt?: number | null
+    emailVerified?: boolean | null
+    tenantId?: string | null
+    tenantSlug?: string | null
+    orgSlug?: string | null
+    orgRole?: string | null
+    accessibleServices?: string[] | null
   },
 ): Promise<string> {
   return new SignJWT({
@@ -25,6 +31,12 @@ export async function signSessionCookie(
     accessToken: payload.accessToken ?? null,
     refreshToken: payload.refreshToken ?? null,
     accessTokenExpiresAt: payload.accessTokenExpiresAt ?? null,
+    emailVerified: payload.emailVerified ?? null,
+    tenantId: payload.tenantId ?? null,
+    tenantSlug: payload.tenantSlug ?? null,
+    orgSlug: payload.orgSlug ?? null,
+    orgRole: payload.orgRole ?? null,
+    accessibleServices: payload.accessibleServices ?? null,
   })
     .setProtectedHeader({ alg: ALG })
     .setIssuedAt()
@@ -48,6 +60,14 @@ export async function verifySessionCookie(
       refreshToken: typeof payload.refreshToken === 'string' ? payload.refreshToken : null,
       accessTokenExpiresAt:
         typeof payload.accessTokenExpiresAt === 'number' ? payload.accessTokenExpiresAt : null,
+      emailVerified: typeof payload.emailVerified === 'boolean' ? payload.emailVerified : null,
+      tenantId: typeof payload.tenantId === 'string' ? payload.tenantId : null,
+      tenantSlug: typeof payload.tenantSlug === 'string' ? payload.tenantSlug : null,
+      orgSlug: typeof payload.orgSlug === 'string' ? payload.orgSlug : null,
+      orgRole: typeof payload.orgRole === 'string' ? payload.orgRole : null,
+      accessibleServices: Array.isArray(payload.accessibleServices)
+        ? (payload.accessibleServices as unknown[]).filter((s): s is string => typeof s === 'string')
+        : null,
       iat: payload.iat ?? 0,
       exp: payload.exp ?? 0,
     }

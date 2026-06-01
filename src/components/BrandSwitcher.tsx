@@ -434,6 +434,35 @@ export function BrandSwitcher() {
               )
             })
           )}
+
+          {/* Single-logout — clears this service's session AND the platform
+              SSO session (via <provider>/api/sso/signout). Present for every
+              consumer so logout is always reachable from the app-switcher. */}
+          <hr
+            style={{
+              border: 'none',
+              borderTop: '1px solid rgba(176,154,106,0.12)',
+              margin: '6px 0',
+            }}
+          />
+          <a
+            href="/api/oidc/signout"
+            role="menuitem"
+            data-testid="brand-switcher-logout"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              padding: '10px 12px',
+              borderRadius: 8,
+              textDecoration: 'none',
+              color: '#B0413A',
+              fontWeight: 500,
+              fontSize: 13.5,
+            }}
+          >
+            Abmelden
+          </a>
         </>
       )}
     </div>

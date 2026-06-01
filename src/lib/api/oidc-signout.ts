@@ -1,29 +1,44 @@
 import { NextResponse } from 'next/server'
-import { OIDC_COOKIE, loadOidcEnv } from '../auth/oidc-config'
+import {
+  OIDC_COOKIE,
+  loadOidcEnv,
+  providerOrigin,
+  secureCookies,
+  signedOutPath,
+} from '../auth/oidc-config'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-const SIGNED_OUT_PATH = '/admin/login?signed-out=1'
+function clearSession(res: NextResponse): void {
+  // Explicit attributes so the delete actually matches the cookie set at login.
+  res.cookies.set(OIDC_COOKIE, '', {
+    httpOnly: true,
+    secure: secureCookies(),
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 0,
+  })
+}
 
 export async function GET(req: Request): Promise<NextResponse> {
   const env = loadOidcEnv()
   const fallbackOrigin = new URL(req.url).origin
   const origin = (env?.baseUrl ?? fallbackOrigin).replace(/\/$/, '')
-  const localLanding = `${origin}${SIGNED_OUT_PATH}`
+  const localLanding = `${origin}${signedOutPath()}`
 
   if (!env) {
     const res = NextResponse.redirect(localLanding)
-    res.cookies.delete(OIDC_COOKIE)
+    clearSession(res)
     return res
   }
 
-  const baseUrl = env.issuer.replace(/\/oidc\/?$/, '')
-  const target = new URL(`${baseUrl}/api/sso/signout`)
+  // Provider single-logout endpoint lives at the issuer origin.
+  const target = new URL(`${providerOrigin(env)}/api/sso/signout`)
   target.searchParams.set('post_logout_redirect_uri', localLanding)
 
   const res = NextResponse.redirect(target)
-  res.cookies.delete(OIDC_COOKIE)
+  clearSession(res)
   return res
 }
 

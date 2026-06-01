@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server'
 import * as oauth from 'oauth4webapi'
 
-import { OIDC_COOKIE, OIDC_SESSION_TTL, OIDC_STATE_COOKIE, loadOidcEnv } from '../auth/oidc-config'
+import {
+  OIDC_COOKIE,
+  OIDC_SESSION_TTL,
+  OIDC_STATE_COOKIE,
+  loadOidcEnv,
+  secureCookies,
+} from '../auth/oidc-config'
 import { signSessionCookie } from '../auth/oidc-cookie'
 
 export const dynamic = 'force-dynamic'
@@ -55,6 +61,14 @@ export async function GET(req: Request): Promise<NextResponse> {
       ? Math.floor(Date.now() / 1000) + result.expires_in
       : null
 
+  // Membership/workspace claims (present when the rflgd:memberships scope was
+  // requested). Persisted into the session JWT so consumers can gate features
+  // via accessibleServices without a /api/shell/me roundtrip.
+  const asString = (v: unknown): string | null => (typeof v === 'string' ? v : null)
+  const accessibleServices = Array.isArray(claims.accessible_services)
+    ? (claims.accessible_services as unknown[]).filter((s): s is string => typeof s === 'string')
+    : null
+
   const session = await signSessionCookie(env.authSecret, {
     sub: String(claims.sub),
     email,
@@ -62,13 +76,19 @@ export async function GET(req: Request): Promise<NextResponse> {
     accessToken,
     refreshToken,
     accessTokenExpiresAt,
+    emailVerified: typeof claims.email_verified === 'boolean' ? claims.email_verified : null,
+    tenantId: asString(claims.tenant_id),
+    tenantSlug: asString(claims.tenant_slug),
+    orgSlug: asString(claims.org_slug),
+    orgRole: asString(claims.org_role),
+    accessibleServices,
   })
 
   const origin = env.baseUrl || url.origin
   const res = NextResponse.redirect(new URL(pkce.callback || '/admin', origin))
   res.cookies.set(OIDC_COOKIE, session, {
     httpOnly: true,
-    secure: req.url.startsWith('https'),
+    secure: secureCookies(),
     sameSite: 'lax',
     path: '/',
     maxAge: OIDC_SESSION_TTL,

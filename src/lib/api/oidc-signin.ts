@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import * as oauth from 'oauth4webapi'
 
-import { OIDC_STATE_COOKIE, loadOidcEnv } from '../auth/oidc-config'
+import { OIDC_STATE_COOKIE, loadOidcEnv, oidcScopes, secureCookies } from '../auth/oidc-config'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -33,7 +33,7 @@ export async function GET(req: Request): Promise<NextResponse> {
   authUrl.searchParams.set('client_id', env.clientId)
   authUrl.searchParams.set('redirect_uri', env.redirectUri)
   authUrl.searchParams.set('response_type', 'code')
-  authUrl.searchParams.set('scope', 'openid profile email offline_access')
+  authUrl.searchParams.set('scope', oidcScopes())
   authUrl.searchParams.set('state', state)
   authUrl.searchParams.set('nonce', nonce)
   authUrl.searchParams.set('code_challenge', codeChallenge)
@@ -42,7 +42,7 @@ export async function GET(req: Request): Promise<NextResponse> {
   const res = NextResponse.redirect(authUrl)
   res.cookies.set(OIDC_STATE_COOKIE, JSON.stringify({ codeVerifier, state, nonce, callback }), {
     httpOnly: true,
-    secure: req.url.startsWith('https'),
+    secure: secureCookies(),
     sameSite: 'lax',
     path: '/',
     maxAge: 600,
