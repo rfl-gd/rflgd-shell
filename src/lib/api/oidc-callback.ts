@@ -81,6 +81,7 @@ export async function GET(req: Request): Promise<NextResponse> {
     tenantSlug: asString(claims.tenant_slug),
     orgSlug: asString(claims.org_slug),
     orgRole: asString(claims.org_role),
+    platformRole: asString(claims.platform_role),
     accessibleServices,
   })
 

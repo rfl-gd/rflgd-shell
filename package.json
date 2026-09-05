@@ -1,6 +1,6 @@
 {
   "name": "@reflagged/shell",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "description": "Shared app shell for Reflagged services — OIDC auth, SSO, app switcher",
   "type": "module",
   "sideEffects": false,

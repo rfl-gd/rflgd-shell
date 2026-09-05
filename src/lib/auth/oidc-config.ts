@@ -17,6 +17,16 @@ export type OidcSessionToken = {
   tenantSlug?: string | null
   orgSlug?: string | null
   orgRole?: string | null
+  /**
+   * The platform-wide role (`superadmin` · `reflagged_admin` · `tenant_admin`
+   * · `member`), beside `org_role` rather than behind it.
+   *
+   * `org_role` is emitted as `membership ?? platform`, which drops the second
+   * one: a `superadmin` carried as `member` in their own organisation looks
+   * like an ordinary member to a service. A service deriving rights from the
+   * token would lock them out of their own instance at the next sign-in.
+   */
+  platformRole?: string | null
   /** Product keys the user may access; ['*'] = all, [] = none. */
   accessibleServices?: string[] | null
   iat: number
