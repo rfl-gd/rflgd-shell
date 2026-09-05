@@ -22,6 +22,7 @@ export async function signSessionCookie(
     tenantSlug?: string | null
     orgSlug?: string | null
     orgRole?: string | null
+    platformRole?: string | null
     accessibleServices?: string[] | null
   },
 ): Promise<string> {
@@ -36,6 +37,7 @@ export async function signSessionCookie(
     tenantSlug: payload.tenantSlug ?? null,
     orgSlug: payload.orgSlug ?? null,
     orgRole: payload.orgRole ?? null,
+    platformRole: payload.platformRole ?? null,
     accessibleServices: payload.accessibleServices ?? null,
   })
     .setProtectedHeader({ alg: ALG })
@@ -65,6 +67,7 @@ export async function verifySessionCookie(
       tenantSlug: typeof payload.tenantSlug === 'string' ? payload.tenantSlug : null,
       orgSlug: typeof payload.orgSlug === 'string' ? payload.orgSlug : null,
       orgRole: typeof payload.orgRole === 'string' ? payload.orgRole : null,
+      platformRole: typeof payload.platformRole === 'string' ? payload.platformRole : null,
       accessibleServices: Array.isArray(payload.accessibleServices)
         ? (payload.accessibleServices as unknown[]).filter((s): s is string => typeof s === 'string')
         : null,
