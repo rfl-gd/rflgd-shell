@@ -40,6 +40,20 @@ Die Rollenvokabulare sind zu Recht verschieden: Kollega kennt
 `admin`/`editor`. Ein gemeinsames Rollenvokabular wäre falsch. Teilbar ist nur
 die Übersetzung.
 
+**Korrektur (16.09.2026, nach der abschließenden Branch-Review):** `org_role`
+ist **dreiwertig**, nicht zweiwertig. rflgd-bases Memberships-Collection bietet
+`owner` | `admin` | `member` (`src/collections/Memberships.ts:50-52`), und die
+buchende Person erhält ihre Mitgliedschaft immer mit `role: 'owner'`, nie
+`'admin'` (`src/lib/auth/onboarding.ts:96`, `src/lib/auth/tenant-onboarding.ts:471`).
+Die Plattform selbst behandelt beide als gleichrangig administrativ:
+`src/lib/access/service-access.ts:20` definiert
+`ORG_ADMIN_ROLES = new Set(['owner', 'admin'])`. Ohne Mitgliedschaftszeile
+trägt `org_role` außerdem eine zweite, plattformweite Rollenvokabular
+(`superadmin` | `reflagged_admin` | `tenant_admin` | `member`,
+`src/lib/oidc/provider.ts:163`: `org_role: orgRole ?? userRole ?? null`). Der
+Text und das Beispiel weiter unten gingen fälschlich von `admin`/`member` aus;
+siehe die Korrektur im Abschnitt „Übernahme in Kollega".
+
 ---
 
 ## Entscheidung
@@ -108,16 +122,34 @@ verhält sich genauso.
 
 ```ts
 createOidcStrategy({
-  roleForNewUser: ({ orgRole, isFirstUser }) =>
-    isFirstUser ? 'admin' : orgRole === 'admin' ? 'hr-admin' : 'employee',
+  roleForNewUser: ({ orgRole, email, isFirstUser }) => {
+    const bootstrap = bootstrapAdminEmail()
+    if (email === bootstrap || (isFirstUser && !bootstrap)) return 'admin'
+    return orgRole === 'owner' || orgRole === 'admin' ? 'hr-admin' : 'employee'
+  },
 })
 ```
 
-`isFirstUser` muss dabei stehen. Ohne den Zweig bekäme die buchende Person
-`hr-admin`, und weil `restrictBootstrapAdmin` die Rolle `admin` nur der
-hinterlegten Bootstrap-Adresse zugesteht, stünde eine frische Instanz am Ende
-**ohne jeden Administrator** da. Die heutige Regel „erstes Konto wird `admin`"
-bleibt also erhalten und bekommt die Übersetzung nur danebengestellt.
+**Korrektur (16.09.2026):** Die ursprüngliche Fassung dieses Beispiels prüfte
+nur `orgRole === 'admin'` und ging von einem zweiwertigen `org_role` aus. Da
+`org_role` dreiwertig ist (siehe Korrektur oben) und die buchende Person immer
+mit `'owner'` angelegt wird, blieb diese Fassung für genau den Fall wirkungslos,
+für den die Funktion geschrieben wurde — die buchende Person selbst bekam
+weiterhin `employee`. Ebenso prüfte die ursprüngliche Fassung nur
+`isFirstUser`, ohne Rücksicht auf eine hinterlegte Bootstrap-Adresse: Eine
+Workspace-Administration, die eine Instanz zuerst öffnet, bekäme `admin`, eine
+die sie danach öffnet, nur `hr-admin` — obwohl `restrictBootstrapAdmin` das
+unbedingte `admin` sofort wieder auf die Vorgaberolle herabstuft, sofern die
+Adresse nicht die Bootstrap-Adresse ist. Die Übersetzung entscheidet jetzt
+nach derselben Adresse wie der Hook, nicht nach Ankunftsreihenfolge.
+
+`isFirstUser` muss trotzdem geprüft werden — nur eben verknüpft mit der
+Bootstrap-Adresse: Ohne diesen Zweig bekäme die buchende Person `hr-admin`,
+und weil `restrictBootstrapAdmin` die Rolle `admin` nur der hinterlegten
+Bootstrap-Adresse zugesteht, stünde eine frische Instanz ohne Bootstrap-Adresse
+am Ende **ohne jeden Administrator** da. Die heutige Regel „erstes Konto wird
+`admin`" bleibt also erhalten, solange keine Bootstrap-Adresse gesetzt ist, und
+bekommt die Übersetzung nur danebengestellt.
 
 **Abgebildet wird auf `hr-admin`, nicht auf `admin`** — aus zwei Gründen, und
 der zweite ist der wichtigere.

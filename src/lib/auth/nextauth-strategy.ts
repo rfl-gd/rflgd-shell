@@ -7,7 +7,18 @@ import { verifySessionCookie } from './oidc-cookie'
 
 /** What the platform knows about a person signing in for the first time. */
 export type NewUserContext = {
-  /** Role in the current workspace ('admin' | 'member'), null without claims. */
+  /**
+   * Role in the current workspace, when a membership row exists for it:
+   * 'owner' | 'admin' | 'member'. When no membership row exists, the
+   * platform substitutes a *platform* role instead — 'superadmin' |
+   * 'reflagged_admin' | 'tenant_admin' | 'member' — a second, unrelated
+   * vocabulary in the same field (rflgd-base `src/lib/oidc/provider.ts:163`,
+   * `org_role: orgRole ?? userRole ?? null`). Only `null` without any claims
+   * at all. Callers that special-case 'admin' should check 'owner' too —
+   * rflgd-base always creates the booking person's membership with
+   * 'owner', never 'admin' (`src/lib/access/service-access.ts:20` treats
+   * both as equally privileged).
+   */
   orgRole: string | null
   /** Role on the platform itself, null without claims. */
   platformRole: string | null

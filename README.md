@@ -46,8 +46,38 @@ import { loadAppConfig } from '@reflagged/shell/config'
 import { OIDC_COOKIE, loadOidcEnv } from '@reflagged/shell/auth/oidc-config'
 import { verifySessionCookie } from '@reflagged/shell/auth/oidc-cookie'
 import { refreshAccessToken } from '@reflagged/shell/auth/oidc-refresh'
-import { nextauthStrategy } from '@reflagged/shell/auth/nextauth-strategy'
+import { nextauthStrategy, createOidcStrategy } from '@reflagged/shell/auth/nextauth-strategy'
 ```
+
+### Mapping the platform's role onto your own (`roleForNewUser`)
+
+`nextauthStrategy` is `createOidcStrategy()` with no options — the role a
+newly created account gets is `RFLGD_DEFAULT_USER_ROLE` (or `admin` for the
+very first account). Call `createOidcStrategy` directly to decide that role
+yourself from the platform's view of the person, using the workspace role
+the platform put in the session:
+
+```ts
+import { createOidcStrategy, type NewUserContext } from '@reflagged/shell/auth/nextauth-strategy'
+
+function roleForNewUser({ orgRole, isFirstUser }: NewUserContext): string {
+  if (isFirstUser) return 'admin'
+  // org_role is three-valued, not two: 'owner' | 'admin' | 'member' when a
+  // membership row exists (both 'owner' and 'admin' administer the
+  // workspace), or a *platform* role — 'superadmin' | 'reflagged_admin' |
+  // 'tenant_admin' | 'member' — when it does not. Check for 'owner' as well
+  // as 'admin': the person who books an instance is always created as
+  // 'owner', never 'admin'.
+  return orgRole === 'owner' || orgRole === 'admin' ? 'workspace-admin' : 'member'
+}
+
+export const oidcStrategy = createOidcStrategy({ roleForNewUser })
+```
+
+This callback runs only when an account is created, never on later
+sign-ins — see `NewUserContext`'s doc comments in
+`src/lib/auth/nextauth-strategy.ts` for the full contract, including the
+`isFirstUser` branch and the `null` case for standalone operation.
 
 ### Per-app route files + middleware
 
