@@ -1,6 +1,6 @@
 {
   "name": "@reflagged/shell",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Shared app shell for Reflagged services — OIDC auth, SSO, app switcher",
   "type": "module",
   "sideEffects": false,
@@ -25,7 +25,8 @@
     "./api/oidc-callback": "./src/lib/api/oidc-callback.ts",
     "./api/oidc-signout": "./src/lib/api/oidc-signout.ts",
     "./api/shell-info": "./src/lib/api/shell-info.ts",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./components/ServiceIcon": "./src/components/ServiceIcon.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
@@ -38,7 +39,8 @@
     "next": "^15.4.0",
     "payload": "^3.79.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "lucide-react": ">=0.400.0"
   },
   "devDependencies": {
     "@types/react": "^19.2.0",
@@ -47,6 +49,12 @@
     "payload": "^3.79.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "lucide-react": "^0.500.0"
+  },
+  "peerDependenciesMeta": {
+    "lucide-react": {
+      "optional": false
+    }
   }
 }

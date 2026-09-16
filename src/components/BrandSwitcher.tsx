@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { loadAppConfig } from '../config'
+import { ServiceIcon } from './ServiceIcon'
 
 type Booking = {
   id: string
@@ -11,6 +12,12 @@ type Booking = {
   status: string
   url: string | null
   iconUrl: string | null
+  /**
+   * Lucide name of the service icon, from rflgd-base. Optional: an older
+   * platform does not send it, and then the initial stands in — the way it
+   * always did.
+   */
+  icon?: string | null
 }
 
 type Org = {
@@ -391,7 +398,7 @@ export function BrandSwitcher() {
                       fontWeight: 600,
                     }}
                   >
-                    {b.label.slice(0, 1).toUpperCase()}
+                    <ServiceIcon name={b.icon} label={b.label} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 500, fontSize: 13.5 }}>{b.label}</div>
