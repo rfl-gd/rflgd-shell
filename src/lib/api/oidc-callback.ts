@@ -18,6 +18,20 @@ export async function GET(req: Request): Promise<NextResponse> {
   if (!env) return NextResponse.json({ error: 'oidc-not-configured' }, { status: 500 })
 
   const url = new URL(req.url)
+
+  // The provider may come back without a code: `error=access_denied` when the
+  // account is not a member of this service instance, `error=server_error`
+  // when it is unwell. validateAuthResponse() throws on these, and an
+  // unhandled throw is a 500 that swallows the one sentence the person
+  // needs. Answer it before anything else — no state cookie is required to
+  // say "no".
+  const providerError = url.searchParams.get('error')
+  if (providerError) {
+    const res = deniedResponse(providerError, url.searchParams.get('error_description'))
+    res.cookies.delete(OIDC_STATE_COOKIE)
+    return res
+  }
+
   const stateCookie = req.headers
     .get('cookie')
     ?.split(';')
@@ -96,4 +110,55 @@ export async function GET(req: Request): Promise<NextResponse> {
   })
   res.cookies.delete(OIDC_STATE_COOKIE)
   return res
+}
+
+const escapeHtml = (v: string): string =>
+  v.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
+
+/**
+ * A readable page for a sign-in the provider refused. 403 for access_denied
+ * (the account exists, the instance is not theirs), 400 for anything else.
+ * The description is the provider's own sentence and arrives via the URL,
+ * so it is escaped — anyone can craft a callback link.
+ */
+export function deniedResponse(error: string, description: string | null): NextResponse {
+  const status = error === 'access_denied' ? 403 : 400
+  const headline =
+    error === 'access_denied' ? 'Kein Zugriff auf diese Anwendung' : 'Anmeldung fehlgeschlagen'
+  const detail =
+    description?.trim() ||
+    (error === 'access_denied'
+      ? 'Ihr Account ist dieser Anwendung nicht zugeordnet.'
+      : `Der Anmeldedienst hat die Anmeldung abgelehnt (${error}).`)
+  const html = `<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escapeHtml(headline)}</title>
+<style>
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center;
+    font-family: system-ui, -apple-system, sans-serif; background: #f6f5f2; color: #1a1a1a; }
+  main { max-width: 32rem; padding: 2rem; }
+  h1 { font-size: 1.25rem; margin: 0 0 .75rem; }
+  p { margin: 0 0 1rem; line-height: 1.5; }
+  small { color: #666; }
+  a { color: #8a7648; }
+</style>
+</head>
+<body>
+<main>
+  <h1>${escapeHtml(headline)}</h1>
+  <p>${escapeHtml(detail)}</p>
+  <p>Bitten Sie eine Administratorin oder einen Administrator Ihrer Organisation, Ihren Account für diese Anwendung freizuschalten.</p>
+  <p><a href="/">Zur Startseite</a></p>
+  <p><small>Fehlercode: ${escapeHtml(error)}</small></p>
+</main>
+</body>
+</html>
+`
+  return new NextResponse(html, {
+    status,
+    headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
+  })
 }
