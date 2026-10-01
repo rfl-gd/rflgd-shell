@@ -94,6 +94,44 @@ export { default, config } from '@reflagged/shell/middleware'
 Other API re-exports: `@reflagged/shell/api/oidc-callback`,
 `@reflagged/shell/api/oidc-signout`, `@reflagged/shell/api/shell-info`.
 
+### Notifications (`createNotifier`, `NotificationBell`)
+
+Since 1.4.0 a module can post notifications to the platform inbox. The base
+stores one inbox entry per recipient, renders and brands the mail, and
+delivers it through the tenant's sender. Modules send data, never HTML.
+
+```ts
+// server only — uses OIDC_ISSUER, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET
+import { createNotifier } from '@reflagged/shell/notifications/notifier'
+
+const notifier = createNotifier()
+await notifier.notify({
+  idempotencyKey: `absence-${absence.id}-approved`, // same key → no duplicate
+  topic: 'kollega.absence.approved',               // <module>.<object>.<event>
+  category: 'activity',                            // or 'transactional' (not opt-out-able)
+  title: 'Urlaub genehmigt',
+  body: '12.–16. Oktober',
+  actionUrl: `https://kollega.acme.rfl.gd/abwesenheiten/${absence.id}`, // https, own or tenant domain
+  actionLabel: 'Antrag öffnen',
+  recipients: [{ email: requester.email }],        // or { userId } / { role: 'org:admins' | 'org:members' }
+})
+```
+
+Recipients must belong to the booking's organization (403 otherwise);
+addresses without a platform account are skipped. The token comes from the
+`client_credentials` grant with scope `notifications:write`, which every
+module client of the platform may request. Errors throw `NotifyError` with
+the HTTP `status` and the base's error `code`.
+
+The bell shows the unread count (from `/api/shell-info`) and links to the
+central inbox:
+
+```tsx
+import { NotificationBell } from '@reflagged/shell/components/NotificationBell'
+
+<NotificationBell />
+```
+
 ## Local development (live-edit against a consumer)
 
 A published package is frozen in `node_modules`. To iterate on the shell and a
