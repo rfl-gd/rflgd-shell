@@ -1,6 +1,6 @@
 {
   "name": "@reflagged/shell",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Shared app shell for Reflagged services — OIDC auth, SSO, app switcher",
   "type": "module",
   "sideEffects": false,
@@ -17,6 +17,7 @@
     "./middleware": "./src/middleware.ts",
     "./config": "./src/config.ts",
     "./components/BrandSwitcher": "./src/components/BrandSwitcher.tsx",
+    "./components/TenantTheme": "./src/components/TenantTheme.tsx",
     "./auth/oidc-config": "./src/lib/auth/oidc-config.ts",
     "./auth/oidc-cookie": "./src/lib/auth/oidc-cookie.ts",
     "./auth/can-access": "./src/lib/auth/can-access.ts",

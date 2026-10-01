@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { loadAppConfig } from '../config'
 import { ServiceIcon } from './ServiceIcon'
+import { useTenantTheme } from './TenantTheme'
 
 type Booking = {
   id: string
@@ -25,6 +26,11 @@ type Org = {
   slug: string
   name: string
   logoUrl: string | null
+  /** Tenant branding from rflgd-base ≥ Oct 2026; older platforms omit them. */
+  logoDarkUrl?: string | null
+  logoMarkUrl?: string | null
+  /** Tenant palette stylesheet (`--brass-50…900`, `--rflgd-brand-primary`). */
+  themeCssUrl?: string | null
 }
 
 type ShellInfo = {
@@ -36,6 +42,15 @@ type ShellInfo = {
   baseUrl: string
 }
 
+/**
+ * Colours follow the tenant palette when the platform's theme.css is loaded
+ * (`--rflgd-brand-primary`, `--brass-700`), and fall back to Reflagged brass.
+ */
+const BRAND = 'var(--rflgd-brand-primary, #B09A6A)'
+const BRAND_TEXT = 'rgb(var(--brass-700, 125 85 26))'
+const tint = (percent: number) =>
+  `color-mix(in srgb, var(--rflgd-brand-primary, #B09A6A) ${percent}%, transparent)`
+
 const StackIcon = ({ size = 22 }: { size?: number }) => (
   <svg
     width={size}
@@ -45,15 +60,32 @@ const StackIcon = ({ size = 22 }: { size?: number }) => (
     aria-hidden
     style={{ flexShrink: 0 }}
   >
-    <path d="M32,0 H23 A3,3 0 0,0 20,3 A3,3 0 0,0 23,6 H32 Z" fill="#B09A6A" />
-    <path d="M32,11 H12 A2,2 0 0,0 10,13 A2,2 0 0,0 12,15 H32 Z" fill="#B09A6A" opacity="0.45" />
+    <path d="M32,0 H23 A3,3 0 0,0 20,3 A3,3 0 0,0 23,6 H32 Z" style={{ fill: BRAND }} />
+    <path d="M32,11 H12 A2,2 0 0,0 10,13 A2,2 0 0,0 12,15 H32 Z" style={{ fill: BRAND }} opacity="0.45" />
     <path
       d="M32,23 H1.5 A1.5,1.5 0 0,0 0,24.5 A1.5,1.5 0 0,0 1.5,26 H32 Z"
-      fill="#B09A6A"
+      style={{ fill: BRAND }}
       opacity="0.25"
     />
   </svg>
 )
+
+/** The tenant's logo mark (square) when it has one, else the Reflagged stack. */
+function BrandMark({ org, size }: { org: Org | null | undefined; size: number }) {
+  const [failed, setFailed] = useState(false)
+  const src = org?.logoMarkUrl ?? null
+  if (!src || failed) return <StackIcon size={size} />
+  return (
+    <img
+      src={src}
+      alt=""
+      width={size}
+      height={size}
+      onError={() => setFailed(true)}
+      style={{ width: size, height: size, objectFit: 'contain', borderRadius: 4, flexShrink: 0 }}
+    />
+  )
+}
 
 export function BrandSwitcher() {
   const config = loadAppConfig()
@@ -120,6 +152,8 @@ export function BrandSwitcher() {
     return () => document.removeEventListener('mousedown', onClick)
   }, [open])
 
+  useTenantTheme(shell?.org?.themeCssUrl)
+
   const ready = (shell?.bookings ?? []).filter((b) => b.status === 'ready' && b.url)
   const orgName = shell?.org?.name ?? null
   const baseUrl = shell?.baseUrl ?? 'https://app.rfl.gd'
@@ -147,7 +181,7 @@ export function BrandSwitcher() {
           color: 'inherit',
         }}
       >
-        <StackIcon size={22} />
+        <BrandMark org={shell?.org} size={22} />
         <div style={{ flex: 1, minWidth: 0, lineHeight: 1.15 }}>
           <div
             style={{
@@ -223,10 +257,10 @@ export function BrandSwitcher() {
         marginTop: pos ? 0 : 8,
         width: 280,
         borderRadius: 14,
-        border: '1px solid rgba(176,154,106,0.16)',
+        border: `1px solid ${tint(16)}`,
         background: '#FFFFFF',
         padding: 8,
-        boxShadow: '0 1px 0 rgba(176,154,106,0.08), 0 12px 40px rgba(0,0,0,0.15)',
+        boxShadow: `0 1px 0 ${tint(8)}, 0 12px 40px rgba(0,0,0,0.15)`,
       }}
     >
       {showWorkspaceSection ? (
@@ -243,7 +277,7 @@ export function BrandSwitcher() {
                   gap: 12,
                   padding: '8px 12px',
                   borderRadius: 8,
-                  background: isCurrent ? 'rgba(176,154,106,0.15)' : 'transparent',
+                  background: isCurrent ? tint(15) : 'transparent',
                 }}
               >
                 <div
@@ -251,8 +285,8 @@ export function BrandSwitcher() {
                     width: 32,
                     height: 32,
                     borderRadius: 8,
-                    background: 'rgba(176,154,106,0.15)',
-                    color: '#B09A6A',
+                    background: tint(15),
+                    color: BRAND_TEXT,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -275,9 +309,9 @@ export function BrandSwitcher() {
                     style={{
                       fontFamily: "'JetBrains Mono', monospace",
                       fontSize: 9.5,
-                      color: '#B09A6A',
+                      color: BRAND_TEXT,
                       padding: '2px 6px',
-                      background: 'rgba(176,154,106,0.15)',
+                      background: tint(15),
                       borderRadius: 4,
                       textTransform: 'uppercase',
                       letterSpacing: '0.1em',
@@ -292,7 +326,7 @@ export function BrandSwitcher() {
           <hr
             style={{
               border: 'none',
-              borderTop: '1px solid rgba(176,154,106,0.12)',
+              borderTop: `1px solid ${tint(12)}`,
               margin: '6px 0',
             }}
           />
@@ -305,7 +339,7 @@ export function BrandSwitcher() {
           href={`/api/oidc/signin?callbackUrl=${encodeURIComponent(
             typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/',
           )}`}
-          style={{ display: 'block', padding: '8px 12px 12px', fontSize: 13, color: '#B09A6A', textDecoration: 'none' }}
+          style={{ display: 'block', padding: '8px 12px 12px', fontSize: 13, color: BRAND_TEXT, textDecoration: 'none' }}
         >
           Anmelden, um Services zu sehen →
         </a>
@@ -331,7 +365,7 @@ export function BrandSwitcher() {
                 width: 32,
                 height: 32,
                 borderRadius: 8,
-                background: 'rgba(176,154,106,0.1)',
+                background: tint(10),
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -351,7 +385,7 @@ export function BrandSwitcher() {
                 fontSize: 9.5,
                 color: '#7A6A58',
                 padding: '2px 6px',
-                background: 'rgba(176,154,106,0.08)',
+                background: tint(8),
                 borderRadius: 4,
                 textTransform: 'uppercase',
                 letterSpacing: '0.1em',
@@ -381,7 +415,7 @@ export function BrandSwitcher() {
                     borderRadius: 8,
                     textDecoration: 'none',
                     color: '#2C1E14',
-                    background: active ? 'rgba(176,154,106,0.15)' : 'transparent',
+                    background: active ? tint(15) : 'transparent',
                   }}
                 >
                   <div
@@ -389,8 +423,8 @@ export function BrandSwitcher() {
                       width: 32,
                       height: 32,
                       borderRadius: 8,
-                      background: active ? 'rgba(176,154,106,0.25)' : 'rgba(176,138,122,0.25)',
-                      color: active ? '#B09A6A' : '#B08A7A',
+                      background: active ? tint(25) : 'rgba(176,138,122,0.25)',
+                      color: active ? BRAND_TEXT : '#B08A7A',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -411,9 +445,9 @@ export function BrandSwitcher() {
                       style={{
                         fontFamily: "'JetBrains Mono', monospace",
                         fontSize: 9.5,
-                        color: '#B09A6A',
+                        color: BRAND_TEXT,
                         padding: '2px 6px',
-                        background: 'rgba(176,154,106,0.15)',
+                        background: tint(15),
                         borderRadius: 4,
                         textTransform: 'uppercase',
                         letterSpacing: '0.1em',
@@ -448,7 +482,7 @@ export function BrandSwitcher() {
           <hr
             style={{
               border: 'none',
-              borderTop: '1px solid rgba(176,154,106,0.12)',
+              borderTop: `1px solid ${tint(12)}`,
               margin: '6px 0',
             }}
           />

@@ -132,6 +132,32 @@ import { NotificationBell } from '@reflagged/shell/components/NotificationBell'
 <NotificationBell />
 ```
 
+## Tenant branding
+
+`BrandSwitcher` shows the tenant's logo mark and loads the tenant palette from
+the platform (`org.themeCssUrl` in `/api/shell-info`) as
+`<link id="rflgd-tenant-theme">`. Modules without the switcher render
+`<TenantTheme />` from `@reflagged/shell/components/TenantTheme` once in the root
+layout.
+
+The stylesheet defines, on `:root`:
+
+- `--brass-50` … `--brass-900` — RGB channels (`125 85 26`), the Reflagged
+  brass scale re-tinted to the tenant colour. Every step keeps brass's
+  luminance, so contrast pairs that work with brass keep working.
+- `--rflgd-brand-primary` — the raw tenant colour (decorative use only).
+
+Point the module's own tokens at it, always with the brass fallback:
+
+```css
+:root { --primary: rgb(var(--brass-700, 125 85 26)); }
+.dark { --primary: rgb(var(--brass-400, 214 166 76)); }
+```
+
+or in Tailwind 3: `primary: 'rgb(var(--brass-700, 125 85 26) / <alpha-value>)'`.
+Text on a filled brand surface stays white on `700` (light) and dark on `400`
+(dark mode). Status and destructive colours do not follow the palette.
+
 ## Local development (live-edit against a consumer)
 
 A published package is frozen in `node_modules`. To iterate on the shell and a
