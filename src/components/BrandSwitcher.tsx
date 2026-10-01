@@ -374,7 +374,7 @@ export function BrandSwitcher() {
               <StackIcon size={18} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 500, fontSize: 13.5 }}>Reflagged Base</div>
+              <div style={{ fontWeight: 500, fontSize: 13.5 }}>Base</div>
               <div style={{ fontSize: 11.5, color: '#7A6A58', marginTop: 2 }}>
                 Katalog & Settings
               </div>
