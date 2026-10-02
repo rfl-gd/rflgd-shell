@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { loadAppConfig } from '../config'
 import { baseSearchUrl, isPaletteShortcut, matchApps, type PaletteApp } from '../lib/palette/palette'
+import { ImpersonationCapsule, type ImpersonationInfo } from './ImpersonationCapsule'
 import { ServiceIcon } from './ServiceIcon'
 import { useTenantTheme } from './TenantTheme'
 
@@ -43,6 +44,8 @@ type ShellInfo = {
   catalog?: Array<{ service: string; tagline: string | null }>
   catalogUrl: string
   baseUrl: string
+  /** Set while a platform admin acts as this user (rflgd-base ≥ Oct 2026). */
+  impersonation?: ImpersonationInfo | null
 }
 
 /**
@@ -156,8 +159,12 @@ export function BrandSwitcher() {
   useEffect(() => {
     let cancel = false
     fetch('/api/shell-info', { credentials: 'include' })
-      .then((r) => {
+      .then(async (r) => {
         if (r.status === 401 || r.status === 403) {
+          // The platform ended this session (e.g. an impersonation was
+          // closed) and the route dropped it: reload into a fresh sign-in.
+          const body = (await r.json().catch(() => null)) as { error?: string } | null
+          if (!cancel && body?.error === 'session-ended') window.location.reload()
           setError(true)
           return null
         }
@@ -601,11 +608,14 @@ export function BrandSwitcher() {
     </div>
   ) : null
 
+  const capsule = mounted && shell?.impersonation ? <ImpersonationCapsule info={shell.impersonation} /> : null
+
   if (mounted && open && pos) {
     return (
       <div data-brand-switcher style={{ position: 'relative' }}>
         {trigger}
         {createPortal(popover, document.body)}
+        {capsule}
       </div>
     )
   }
@@ -614,6 +624,7 @@ export function BrandSwitcher() {
     <div data-brand-switcher style={{ position: 'relative' }}>
       {trigger}
       {popover}
+      {capsule}
     </div>
   )
 }

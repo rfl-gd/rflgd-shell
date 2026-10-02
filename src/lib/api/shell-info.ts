@@ -103,6 +103,15 @@ export async function GET(req: Request): Promise<NextResponse> {
     }
   }
 
+  // Refused even after a refresh: the platform has ended this session (e.g. an
+  // impersonation the admin closed). Drop it so the module signs in afresh
+  // instead of carrying on as the customer.
+  if (upstream.status === 401) {
+    const ended = NextResponse.json({ error: 'session-ended' }, { status: 401 })
+    ended.cookies.set(OIDC_COOKIE, '', { path: '/', maxAge: 0 })
+    return ended
+  }
+
   if (!upstream.ok) {
     return NextResponse.json(
       { error: 'upstream-failed', status: upstream.status },
