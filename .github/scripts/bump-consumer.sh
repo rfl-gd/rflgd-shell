@@ -15,20 +15,36 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
 # Merge once the PR's CI is green; a red or missing CI leaves it open.
+#
+# CI is read from the Actions runs for the PR's head commit: a fine-grained
+# token cannot read check runs (there is no Checks permission for it), but
+# "Actions: read" covers the workflow runs every consumer's CI is made of.
 wait_and_merge() {
-  local url=$1 n=0
-  # Checks register a little after the push; wait for them (up to 10 min).
+  local url=$1 sha runs pending failed
+  sha=$(gh pr view "$url" --json headRefOid -q .headRefOid)
+  runs="repos/$repo/actions/runs?head_sha=$sha&per_page=100"
+  # Runs register a little after the push; wait for them (up to 10 min).
   for _ in $(seq 1 20); do
-    n=$(gh pr view "$url" --json statusCheckRollup -q '.statusCheckRollup | length')
-    [ "$n" -gt 0 ] && break
+    [ "$(gh api "$runs" -q '.workflow_runs | length')" -gt 0 ] && break
     sleep 30
   done
-  if [ "$n" -eq 0 ]; then
-    echo "::warning title=$repo::no CI checks on the PR; left open: $url"
+  if [ "$(gh api "$runs" -q '.workflow_runs | length')" -eq 0 ]; then
+    echo "::warning title=$repo::no CI runs for the PR; left open: $url"
     return 0
   fi
-  if ! gh pr checks "$url" --watch --interval 30; then
-    echo "::warning title=$repo::CI not green; PR left open: $url"
+  # Then until every run has finished (up to 75 min).
+  for _ in $(seq 1 150); do
+    pending=$(gh api "$runs" -q '[.workflow_runs[] | select(.status != "completed")] | length')
+    [ "$pending" -eq 0 ] && break
+    sleep 30
+  done
+  if [ "$pending" -ne 0 ]; then
+    echo "::warning title=$repo::CI still running after 75 min; PR left open: $url"
+    return 0
+  fi
+  failed=$(gh api "$runs" -q '[.workflow_runs[] | select(.conclusion | IN("success", "skipped", "neutral") | not) | "\(.name)=\(.conclusion)"] | join(", ")')
+  if [ -n "$failed" ]; then
+    echo "::warning title=$repo::CI not green ($failed); PR left open: $url"
     return 0
   fi
   if gh pr merge "$url" --squash --delete-branch; then
