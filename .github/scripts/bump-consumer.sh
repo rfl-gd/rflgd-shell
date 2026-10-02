@@ -14,9 +14,37 @@ branch="chore/reflagged-shell-$version"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
-if [ -z "${DRY_RUN:-}" ] && [ -n "$(gh pr list -R "$repo" --head "$branch" --state all --json number -q '.[].number')" ]; then
-  echo "PR for $branch exists already in $repo, skipping."
-  exit 0
+# Merge once the PR's CI is green; a red or missing CI leaves it open.
+wait_and_merge() {
+  local url=$1 n=0
+  # Checks register a little after the push; wait for them (up to 10 min).
+  for _ in $(seq 1 20); do
+    n=$(gh pr view "$url" --json statusCheckRollup -q '.statusCheckRollup | length')
+    [ "$n" -gt 0 ] && break
+    sleep 30
+  done
+  if [ "$n" -eq 0 ]; then
+    echo "::warning title=$repo::no CI checks on the PR; left open: $url"
+    return 0
+  fi
+  if ! gh pr checks "$url" --watch --interval 30; then
+    echo "::warning title=$repo::CI not green; PR left open: $url"
+    return 0
+  fi
+  if gh pr merge "$url" --squash --delete-branch; then
+    echo "Merged $url"
+  else
+    echo "::warning title=$repo::merge refused (branch protection?); PR left open: $url"
+  fi
+}
+
+if [ -z "${DRY_RUN:-}" ]; then
+  state=$(gh pr list -R "$repo" --head "$branch" --state all --json state,url -q '.[0] | "\(.state) \(.url)"')
+  case "$state" in
+    MERGED*) echo "$repo: $branch is merged already."; exit 0 ;;
+    OPEN*) echo "$repo: resuming ${state#OPEN }"; wait_and_merge "${state#OPEN }"; exit 0 ;;
+    CLOSED*) echo "$repo: $branch was closed by hand, leaving it."; exit 0 ;;
+  esac
 fi
 
 git clone --quiet --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/$repo.git" "$work/repo"
@@ -90,15 +118,4 @@ url=$(gh pr create -R "$repo" --head "$branch" \
   --body "Automatic bump from the [$pkg $version](https://github.com/rfl-gd/rflgd-shell/releases/tag/v$version) release. Merged automatically once CI is green; running instances update via Base → Plattform → Updates.")
 echo "Opened $url"
 
-# Give the repo's workflows a moment to register their checks.
-sleep 45
-if ! gh pr checks "$url" --watch --interval 30 >/dev/null 2>&1; then
-  echo "::warning title=$repo::CI not green (or no checks); PR left open: $url"
-  exit 0
-fi
-
-if gh pr merge "$url" --squash --delete-branch; then
-  echo "Merged $url"
-else
-  echo "::warning title=$repo::merge refused (branch protection?); PR left open: $url"
-fi
+wait_and_merge "$url"
