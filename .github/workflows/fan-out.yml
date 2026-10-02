@@ -1,0 +1,67 @@
+name: Roll out @reflagged/shell to consumers
+
+# After a release is on npm, open a bump PR in every rfl-gd repo that depends
+# on the package and merge it once that repo's CI is green. Running tenant
+# instances are pinned and still update one by one via Base → Plattform →
+# Updates.
+on:
+  workflow_run:
+    workflows: ['Publish @rfl-gd/shell']
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to roll out (e.g. 1.6.1)'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  consumers:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      repos: ${{ steps.find.outputs.repos }}
+      version: ${{ steps.find.outputs.version }}
+    steps:
+      - id: find
+        env:
+          GH_TOKEN: ${{ secrets.SHELL_FANOUT_TOKEN }}
+          INPUT_VERSION: ${{ inputs.version }}
+          RUN_TAG: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          version="${INPUT_VERSION:-${RUN_TAG#v}}"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Not a release version: '$version'" >&2
+            exit 1
+          fi
+          # One code search for the whole org (the endpoint allows ~10 calls a minute).
+          repos=$(gh api -X GET search/code --paginate \
+            -f q='"@reflagged/shell" org:rfl-gd filename:package.json' \
+            -q '.items[] | select(.path == "package.json") | .repository.full_name' \
+            | sort -u | grep -vx 'rfl-gd/rflgd-shell' | jq -R . | jq -sc .)
+          echo "Rolling out $version to: $repos"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "repos=$repos" >> "$GITHUB_OUTPUT"
+
+  bump:
+    needs: consumers
+    if: needs.consumers.outputs.repos != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        repo: ${{ fromJson(needs.consumers.outputs.repos) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - env:
+          GH_TOKEN: ${{ secrets.SHELL_FANOUT_TOKEN }}
+          REPO: ${{ matrix.repo }}
+          VERSION: ${{ needs.consumers.outputs.version }}
+        run: .github/scripts/bump-consumer.sh "$REPO" "$VERSION"

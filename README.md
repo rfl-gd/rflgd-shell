@@ -132,6 +132,19 @@ import { NotificationBell } from '@reflagged/shell/components/NotificationBell'
 <NotificationBell />
 ```
 
+## Releasing
+
+Bump `version` in `package.json`, commit, tag `vX.Y.Z` and push the tag.
+`publish.yml` puts it on npm; `fan-out.yml` then opens a bump PR in every
+`rfl-gd` repo whose root `package.json` depends on this package and merges it
+once that repo's CI is green. A red or missing CI leaves the PR open. Re-run a
+rollout via *Actions → Roll out @reflagged/shell → Run workflow*.
+
+Needs the secret `SHELL_FANOUT_TOKEN`: a fine-grained token on `rfl-gd`, all
+repositories, with Contents and Pull requests read/write, Commit statuses and
+Actions read. Running tenant instances stay pinned and update one by one in
+Base (Plattform → Updates).
+
 ## App palette
 
 `BrandSwitcher` opens on click or with ⌘K / Ctrl+K anywhere in the app. It
