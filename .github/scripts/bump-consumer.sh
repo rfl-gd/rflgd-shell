@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Bump @reflagged/shell in one consumer repo, open a PR, and merge it once its
-# CI is green. A red or missing CI leaves the PR open for a human.
+# Bump @reflagged/shell in one consumer repo, open a PR, and merge it unless
+# the bump breaks a CI job that passes on the default branch.
 #
 # Usage: bump-consumer.sh <owner/repo> <version>
 # Env:   GH_TOKEN (contents + pull requests write on the repo)
@@ -14,13 +14,35 @@ branch="chore/reflagged-shell-$version"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
-# Merge once the PR's CI is green; a red or missing CI leaves it open.
+# Failed jobs ("workflow / job") across the given workflow runs. A run that
+# failed before starting any job (a broken workflow file) counts as one entry.
+failed_jobs() {
+  local id
+  for id in "$@"; do
+    gh api "repos/$repo/actions/runs/$id" -q 'select(.conclusion | IN("success", "skipped", "neutral") | not) | .name' |
+      while read -r name; do
+        jobs=$(gh api "repos/$repo/actions/runs/$id/jobs?per_page=100" \
+          -q '.jobs[] | select(.conclusion | IN("success", "skipped", "neutral") | not) | .name')
+        if [ -n "$jobs" ]; then
+          printf '%s\n' "$jobs" | sed "s|^|$name / |"
+        else
+          echo "$name"
+        fi
+      done
+  done | sort -u
+}
+
+# Merge once the PR is no worse than the default branch: every job that
+# fails on the PR fails on the latest push to the default branch, too. Many
+# consumers have a red main; holding the bump back there helps nobody, while
+# a job the bump breaks still keeps the PR open. No CI at all: merge, the
+# diff is package.json and the lockfile.
 #
 # CI is read from the Actions runs for the PR's head commit: a fine-grained
 # token cannot read check runs (there is no Checks permission for it), but
 # "Actions: read" covers the workflow runs every consumer's CI is made of.
 wait_and_merge() {
-  local url=$1 sha runs pending failed
+  local url=$1 sha runs pending pr_failed main_failed regressions default
   sha=$(gh pr view "$url" --json headRefOid -q .headRefOid)
   runs="repos/$repo/actions/runs?head_sha=$sha&per_page=100"
   # Runs register a little after the push; wait for them (up to 10 min).
@@ -28,24 +50,31 @@ wait_and_merge() {
     [ "$(gh api "$runs" -q '.workflow_runs | length')" -gt 0 ] && break
     sleep 30
   done
-  if [ "$(gh api "$runs" -q '.workflow_runs | length')" -eq 0 ]; then
-    echo "::warning title=$repo::no CI runs for the PR; left open: $url"
-    return 0
-  fi
-  # Then until every run has finished (up to 75 min).
-  for _ in $(seq 1 150); do
-    pending=$(gh api "$runs" -q '[.workflow_runs[] | select(.status != "completed")] | length')
-    [ "$pending" -eq 0 ] && break
-    sleep 30
-  done
-  if [ "$pending" -ne 0 ]; then
-    echo "::warning title=$repo::CI still running after 75 min; PR left open: $url"
-    return 0
-  fi
-  failed=$(gh api "$runs" -q '[.workflow_runs[] | select(.conclusion | IN("success", "skipped", "neutral") | not) | "\(.name)=\(.conclusion)"] | join(", ")')
-  if [ -n "$failed" ]; then
-    echo "::warning title=$repo::CI not green ($failed); PR left open: $url"
-    return 0
+  if [ "$(gh api "$runs" -q '.workflow_runs | length')" -gt 0 ]; then
+    # Then until every run has finished (up to 75 min).
+    for _ in $(seq 1 150); do
+      pending=$(gh api "$runs" -q '[.workflow_runs[] | select(.status != "completed")] | length')
+      [ "$pending" -eq 0 ] && break
+      sleep 30
+    done
+    if [ "$pending" -ne 0 ]; then
+      echo "::warning title=$repo::CI still running after 75 min; PR left open: $url"
+      return 0
+    fi
+    pr_failed=$(failed_jobs $(gh api "$runs" -q '.workflow_runs[].id'))
+    if [ -n "$pr_failed" ]; then
+      default=$(gh api "repos/$repo" -q .default_branch)
+      main_failed=$(failed_jobs $(gh api "repos/$repo/actions/runs?branch=$default&event=push&status=completed&per_page=50" \
+        -q '.workflow_runs | group_by(.name) | map(max_by(.created_at)) | .[].id'))
+      regressions=$(comm -23 <(printf '%s\n' "$pr_failed") <(printf '%s\n' "$main_failed"))
+      if [ -n "$regressions" ]; then
+        echo "::warning title=$repo::the bump breaks: $(echo "$regressions" | paste -sd ',' -); PR left open: $url"
+        return 0
+      fi
+      echo "$repo: fails only what $default fails already: $(echo "$pr_failed" | paste -sd ',' -)"
+    fi
+  else
+    echo "$repo: no CI runs for the PR; merging the dependency bump."
   fi
   if gh pr merge "$url" --squash --delete-branch; then
     echo "Merged $url"

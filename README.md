@@ -137,12 +137,15 @@ import { NotificationBell } from '@reflagged/shell/components/NotificationBell'
 Bump `version` in `package.json`, commit, tag `vX.Y.Z` and push the tag.
 `publish.yml` puts it on npm; `fan-out.yml` then opens a bump PR in every
 `rfl-gd` repo whose root `package.json` depends on this package and merges it
-once that repo's CI is green. A red or missing CI leaves the PR open. Re-run a
-rollout via *Actions → Roll out @reflagged/shell → Run workflow*.
+unless the bump breaks a CI job that passes on the repo's default branch (a
+main that is red already does not block it; no CI at all merges, too). Re-run
+a rollout via *Actions → Roll out @reflagged/shell → Run workflow*; it resumes
+open PRs.
 
 Needs the secret `SHELL_FANOUT_TOKEN`: a fine-grained token on `rfl-gd`, all
 repositories, with Contents and Pull requests read/write, Commit statuses and
-Actions read. Running tenant instances stay pinned and update one by one in
+Actions read. `PACKAGES_READ_TOKEN` (`read:packages`) lets repos with private
+`@rfl-gd` packages resolve their lockfile. Running tenant instances stay pinned and update one by one in
 Base (Plattform → Updates).
 
 ## App palette
