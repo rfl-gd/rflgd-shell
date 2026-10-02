@@ -186,6 +186,9 @@ export function BrandSwitcher() {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (!isPaletteShortcut(e)) return
+      // Apps mount the switcher twice (mobile header, desktop sidebar) and hide
+      // one with CSS; only the visible one answers, or both palettes open.
+      if (!triggerRef.current?.getClientRects().length) return
       e.preventDefault()
       place()
       setOpen((v) => !v)
