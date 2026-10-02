@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { loadAppConfig } from '../config'
+import { baseSearchUrl, isPaletteShortcut, matchApps, type PaletteApp } from '../lib/palette/palette'
 import { ServiceIcon } from './ServiceIcon'
 import { useTenantTheme } from './TenantTheme'
 
@@ -34,10 +35,12 @@ type Org = {
 }
 
 type ShellInfo = {
-  user: { email: string; name?: string | null }
+  user: { email: string; name?: string | null; role?: string }
   org: Org | null
   orgs?: Org[]
   bookings: Booking[]
+  /** Catalog entries; only `tagline` is read here (rflgd-base ≥ Oct 2026). */
+  catalog?: Array<{ service: string; tagline: string | null }>
   catalogUrl: string
   baseUrl: string
 }
@@ -87,17 +90,67 @@ function BrandMark({ org, size }: { org: Org | null | undefined; size: number })
   )
 }
 
+const INK = '#2C1E14'
+const MUTED = '#7A6A58'
+const MONO = "'JetBrains Mono', monospace"
+const PLATE: React.CSSProperties = {
+  display: 'grid',
+  placeItems: 'center',
+  color: BRAND_TEXT,
+  background: 'linear-gradient(180deg, #fffdf6 0%, #f7edd6 52%, #f0e2c2 100%)',
+  boxShadow:
+    'inset 0 1px 0 rgba(255,255,255,0.95), 0 0 0 1px rgba(125,85,26,0.13), 0 5px 12px -5px rgba(58,40,12,0.32)',
+  flexShrink: 0,
+}
+const LABEL: React.CSSProperties = {
+  fontFamily: MONO,
+  fontSize: 10,
+  color: MUTED,
+  textTransform: 'uppercase',
+  letterSpacing: '0.12em',
+}
+const KBD: React.CSSProperties = {
+  fontFamily: MONO,
+  fontSize: 10,
+  color: MUTED,
+  border: '1px solid rgba(44,30,20,0.14)',
+  borderRadius: 4,
+  padding: '0 5px',
+  whiteSpace: 'nowrap',
+}
+
+function AppGlyph({ app, size }: { app: PaletteApp; size: number }) {
+  return app.icon === null ? <StackIcon size={size} /> : <ServiceIcon name={app.icon} label={app.label} size={size} />
+}
+
+/**
+ * Logo-as-switcher. One click on the trigger, or ⌘K / Ctrl+K anywhere,
+ * opens the app palette (design "C · Spotlight", same as rflgd-base):
+ * every app as an icon plate with its catalog tagline, a search across
+ * apps, the user's workspaces, and logout.
+ *
+ * Platform admins also get a "Plattform" section. Switching a platform
+ * tenant runs on Base's session, so it links to the Base palette with the
+ * query prefilled instead of switching here.
+ */
 export function BrandSwitcher() {
   const config = loadAppConfig()
   const [shell, setShell] = useState<ShellInfo | null>(null)
   const [error, setError] = useState(false)
   const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [active, setActive] = useState(0)
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
   const [mounted, setMounted] = useState(false)
+  const [shortcut, setShortcut] = useState('Strg K')
   const triggerRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const listId = useId()
 
   useEffect(() => {
     setMounted(true)
+    if (/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)) setShortcut('⌘K')
   }, [])
 
   useEffect(() => {
@@ -119,55 +172,110 @@ export function BrandSwitcher() {
     }
   }, [])
 
-  const handleToggle = () => {
-    if (!open && triggerRef.current) {
-      const r = triggerRef.current.getBoundingClientRect()
-      setPos({ top: r.bottom + 4, left: r.left })
-    }
+  const place = () => {
+    const r = triggerRef.current?.getBoundingClientRect()
+    if (r) setPos({ top: r.bottom + 4, left: Math.max(8, Math.min(r.left, window.innerWidth - 648)) })
+  }
+
+  const toggle = () => {
+    if (!open) place()
     setOpen((v) => !v)
   }
 
-  // Keep position in sync on resize/scroll while open
+  // Global shortcut.
   useEffect(() => {
-    if (!open || !triggerRef.current) return
-    const update = () => {
-      const r = triggerRef.current?.getBoundingClientRect()
-      if (r) setPos({ top: r.bottom + 4, left: r.left })
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!isPaletteShortcut(e)) return
+      e.preventDefault()
+      place()
+      setOpen((v) => !v)
     }
-    window.addEventListener('resize', update)
-    window.addEventListener('scroll', update, true)
-    return () => {
-      window.removeEventListener('resize', update)
-      window.removeEventListener('scroll', update, true)
-    }
-  }, [open])
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [])
 
+  // While open: follow the trigger, close on outside click, focus the search.
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      setQuery('')
+      return
+    }
+    requestAnimationFrame(() => inputRef.current?.focus())
     const onClick = (e: MouseEvent) => {
       if ((e.target as HTMLElement)?.closest('[data-brand-switcher]')) return
       setOpen(false)
     }
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, true)
     document.addEventListener('mousedown', onClick)
-    return () => document.removeEventListener('mousedown', onClick)
+    return () => {
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', place, true)
+      document.removeEventListener('mousedown', onClick)
+    }
   }, [open])
 
   useTenantTheme(shell?.org?.themeCssUrl)
 
-  const ready = (shell?.bookings ?? []).filter((b) => b.status === 'ready' && b.url)
   const orgName = shell?.org?.name ?? null
   const baseUrl = shell?.baseUrl ?? 'https://app.rfl.gd'
   const orgs = shell?.orgs ?? (shell?.org ? [shell.org] : [])
-  const showWorkspaceSection = orgs.length > 1
+  const isPlatformAdmin = shell?.user.role === 'superadmin' || shell?.user.role === 'reflagged_admin'
+
+  const apps = useMemo<PaletteApp[]>(() => {
+    const taglines = new Map((shell?.catalog ?? []).map((c) => [c.service, c.tagline]))
+    const ready = (shell?.bookings ?? []).filter((b) => b.status === 'ready' && b.url)
+    return [
+      { key: 'base', label: 'Base', tagline: 'Start, Team und Einstellungen', icon: null, href: baseUrl, current: false },
+      ...ready.map((b) => ({
+        key: b.service,
+        label: b.label,
+        tagline: taglines.get(b.service) ?? null,
+        icon: b.icon ?? '',
+        href: b.url as string,
+        current: b.service === config.appKey,
+      })),
+    ]
+  }, [shell, baseUrl, config.appKey])
+
+  const hits = useMemo(() => matchApps(apps, query), [apps, query])
+  const hasQuery = query.trim().length > 0
+  // The platform jump is the last row while searching, so ↓ reaches it.
+  const rowCount = hits.length + (hasQuery && isPlatformAdmin ? 1 : 0)
+
+  useEffect(() => setActive(0), [query])
+
+  const onInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActive((i) => Math.min(i + 1, rowCount - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActive((i) => Math.max(i - 1, 0))
+    } else if (e.key === 'Enter' && hasQuery) {
+      e.preventDefault()
+      const hit = hits[active]
+      if (hit) window.location.assign(hit.href)
+      else if (isPlatformAdmin) window.location.assign(baseSearchUrl(baseUrl, query))
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      if (query) setQuery('')
+      else {
+        setOpen(false)
+        buttonRef.current?.focus()
+      }
+    }
+  }
 
   const trigger = (
     <div ref={triggerRef}>
       <button
+        ref={buttonRef}
         type="button"
-        onClick={handleToggle}
-        aria-haspopup="menu"
+        onClick={toggle}
+        aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label="Reflagged Apps wechseln"
+        aria-label="Apps wechseln"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -182,7 +290,7 @@ export function BrandSwitcher() {
         }}
       >
         <BrandMark org={shell?.org} size={22} />
-        <div style={{ flex: 1, minWidth: 0, lineHeight: 1.15 }}>
+        <div style={{ flex: 1, minWidth: 0, lineHeight: 1.15, textAlign: 'left' }}>
           <div
             style={{
               fontFamily: "'Red Hat Display', system-ui, sans-serif",
@@ -192,17 +300,17 @@ export function BrandSwitcher() {
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
-              color: '#2C1E14',
+              color: INK,
             }}
           >
             {config.appLabel}
           </div>
           <div
             style={{
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: MONO,
               fontSize: 10.5,
               letterSpacing: '0.1em',
-              color: '#7A6A58',
+              color: MUTED,
               marginTop: 2,
               whiteSpace: 'nowrap',
               overflow: 'hidden',
@@ -212,300 +320,281 @@ export function BrandSwitcher() {
             {orgName ? `${orgName} · rfl.gd` : 'rfl.gd'}
           </div>
         </div>
-        {orgName ? (
-          <span
-            style={{
-              fontSize: 10,
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-              padding: '2px 8px',
-              borderRadius: 99,
-              border: '1px solid rgba(44,30,20,0.1)',
-              background: 'rgba(44,30,20,0.03)',
-              color: '#7A6A58',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {orgName}
-          </span>
-        ) : null}
-        <span aria-hidden style={{ color: '#7A6A58', fontSize: 10, marginLeft: 4 }}>
-          {open ? '▴' : '▾'}
-        </span>
+        <span style={{ ...KBD, marginLeft: 4 }}>{shortcut}</span>
       </button>
     </div>
   )
 
-  const sectionLabelStyle: React.CSSProperties = {
-    padding: '10px 12px 6px',
-    fontFamily: "'JetBrains Mono', monospace",
-    fontSize: 10,
-    color: '#7A6A58',
-    textTransform: 'uppercase',
-    letterSpacing: '0.12em',
-  }
+  const tile = (app: PaletteApp) => (
+    <a
+      key={app.key}
+      href={app.href}
+      aria-current={app.current ? 'page' : undefined}
+      data-testid={`brand-switcher-app-${app.key}`}
+      style={{
+        position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 6,
+        padding: '12px 8px',
+        borderRadius: 12,
+        textDecoration: 'none',
+        textAlign: 'center',
+        color: INK,
+        background: app.current ? tint(15) : 'transparent',
+      }}
+    >
+      {app.current ? (
+        <span style={{ ...LABEL, position: 'absolute', top: 8, right: 8, fontSize: 9, color: BRAND_TEXT }}>Hier</span>
+      ) : null}
+      <span aria-hidden style={{ ...PLATE, width: 48, height: 48, borderRadius: 14 }}>
+        <AppGlyph app={app} size={22} />
+      </span>
+      <span style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.2 }}>{app.label}</span>
+      {app.tagline ? (
+        <span
+          style={{
+            fontSize: 11.5,
+            lineHeight: 1.3,
+            color: MUTED,
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+          }}
+        >
+          {app.tagline}
+        </span>
+      ) : null}
+    </a>
+  )
+
+  const row = (key: string, index: number, href: string, icon: React.ReactNode, title: string, sub: string) => (
+    <a
+      key={key}
+      id={`${listId}-${index}`}
+      role="option"
+      aria-selected={index === active}
+      href={href}
+      onMouseEnter={() => setActive(index)}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        padding: 8,
+        borderRadius: 10,
+        textDecoration: 'none',
+        color: INK,
+        background: index === active ? 'rgba(44,30,20,0.05)' : 'transparent',
+      }}
+    >
+      {icon}
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600 }}>{title}</span>
+        <span
+          style={{
+            display: 'block',
+            fontSize: 12,
+            color: MUTED,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {sub}
+        </span>
+      </span>
+      {index === active ? <span style={{ ...KBD, border: 'none' }}>↵</span> : null}
+    </a>
+  )
 
   const popover = open ? (
     <div
-      role="menu"
+      role="dialog"
+      aria-label="Apps und Workspaces"
       data-brand-switcher
+      data-testid="brand-switcher-panel"
       style={{
         position: pos ? 'fixed' : 'absolute',
         left: pos ? pos.left : 0,
         top: pos ? pos.top : '100%',
         zIndex: 2147483647,
         marginTop: pos ? 0 : 8,
-        width: 280,
-        borderRadius: 14,
+        width: 'min(640px, calc(100vw - 16px))',
+        borderRadius: 16,
         border: `1px solid ${tint(16)}`,
         background: '#FFFFFF',
-        padding: 8,
-        boxShadow: `0 1px 0 ${tint(8)}, 0 12px 40px rgba(0,0,0,0.15)`,
+        overflow: 'hidden',
+        boxShadow: `0 1px 0 ${tint(8)}, 0 24px 48px -20px rgba(58,40,12,0.35)`,
+        fontFamily: "'Inter', system-ui, sans-serif",
+        color: INK,
       }}
     >
-      {showWorkspaceSection ? (
-        <>
-          <div style={sectionLabelStyle}>Workspace</div>
-          {orgs.map((o) => {
-            const isCurrent = o.id === shell?.org?.id
-            return (
-              <div
-                key={o.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  background: isCurrent ? tint(15) : 'transparent',
-                }}
-              >
-                <div
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 8,
-                    background: tint(15),
-                    color: BRAND_TEXT,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontFamily: "'Red Hat Display', system-ui, sans-serif",
-                    fontWeight: 600,
-                  }}
-                >
-                  {o.name.slice(0, 1).toUpperCase()}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 500, fontSize: 13.5, color: '#2C1E14' }}>{o.name}</div>
-                  <div style={{ fontSize: 11.5, color: '#7A6A58', marginTop: 2 }}>
-                    {isCurrent
-                      ? `${ready.length} Service${ready.length === 1 ? '' : 's'} aktiv`
-                      : o.slug}
-                  </div>
-                </div>
-                {isCurrent ? (
-                  <span
-                    style={{
-                      fontFamily: "'JetBrains Mono', monospace",
-                      fontSize: 9.5,
-                      color: BRAND_TEXT,
-                      padding: '2px 6px',
-                      background: tint(15),
-                      borderRadius: 4,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.1em',
-                    }}
-                  >
-                    aktuell
-                  </span>
+      <label
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          padding: '12px 16px',
+          borderBottom: `1px solid ${tint(12)}`,
+        }}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={MUTED} strokeWidth="2" strokeLinecap="round" aria-hidden>
+          <circle cx="11" cy="11" r="8" />
+          <path d="m21 21-4.3-4.3" />
+        </svg>
+        <input
+          ref={inputRef}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={onInputKeyDown}
+          role="combobox"
+          aria-expanded={hasQuery}
+          aria-controls={listId}
+          aria-activedescendant={hasQuery && rowCount > 0 ? `${listId}-${active}` : undefined}
+          aria-label={isPlatformAdmin ? 'App oder Unternehmen suchen' : 'App suchen'}
+          placeholder={isPlatformAdmin ? 'App oder Unternehmen suchen …' : 'App suchen …'}
+          data-testid="brand-switcher-search"
+          style={{ flex: 1, minWidth: 0, border: 0, outline: 'none', background: 'transparent', font: 'inherit', fontSize: 15, color: INK }}
+        />
+        <span style={KBD}>Esc</span>
+      </label>
+
+      <div style={{ maxHeight: 'min(32rem, 70vh)', overflowY: 'auto', padding: 16, display: 'grid', gap: 16 }}>
+        {error && !shell ? (
+          <a
+            href={`/api/oidc/signin?callbackUrl=${encodeURIComponent(
+              typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/',
+            )}`}
+            style={{ fontSize: 13, color: BRAND_TEXT, textDecoration: 'none' }}
+          >
+            Anmelden, um Services zu sehen →
+          </a>
+        ) : hasQuery ? (
+          <div id={listId} role="listbox" aria-label="Treffer" style={{ display: 'grid', gap: 2 }}>
+            {hits.length > 0 ? <div style={{ ...LABEL, padding: '0 8px 4px' }}>Apps</div> : null}
+            {hits.map((app, i) =>
+              row(
+                app.key,
+                i,
+                app.href,
+                <span aria-hidden style={{ ...PLATE, width: 36, height: 36, borderRadius: 10 }}>
+                  <AppGlyph app={app} size={17} />
+                </span>,
+                app.label,
+                app.tagline ?? '',
+              ),
+            )}
+            {isPlatformAdmin ? (
+              <>
+                <div style={{ ...LABEL, padding: '10px 8px 4px', color: BRAND_TEXT }}>Plattform · Workspace wechseln</div>
+                {row(
+                  'platform',
+                  hits.length,
+                  baseSearchUrl(baseUrl, query),
+                  <span aria-hidden style={{ ...PLATE, width: 36, height: 36, borderRadius: 10 }}>
+                    <StackIcon size={17} />
+                  </span>,
+                  `„${query.trim()}“ unter Unternehmen suchen`,
+                  'Öffnet Base, der Wechsel läuft dort',
+                )}
+              </>
+            ) : hits.length === 0 ? (
+              <div style={{ padding: 8, fontSize: 13, color: MUTED }}>Nichts gefunden. Versuch es mit einem App-Namen.</div>
+            ) : null}
+          </div>
+        ) : (
+          <>
+            <section aria-label="Apps" style={{ display: 'grid', gap: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, padding: '0 4px' }}>
+                <span style={LABEL}>Deine Apps</span>
+                {shell?.catalogUrl ? (
+                  <a href={shell.catalogUrl} style={{ fontSize: 12.5, fontWeight: 500, color: BRAND_TEXT, textDecoration: 'none' }}>
+                    Katalog öffnen
+                  </a>
                 ) : null}
               </div>
-            )
-          })}
-          <hr
-            style={{
-              border: 'none',
-              borderTop: `1px solid ${tint(12)}`,
-              margin: '6px 0',
-            }}
-          />
-        </>
-      ) : null}
-
-      <div style={sectionLabelStyle}>Apps</div>
-      {error && !shell ? (
-        <a
-          href={`/api/oidc/signin?callbackUrl=${encodeURIComponent(
-            typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/',
-          )}`}
-          style={{ display: 'block', padding: '8px 12px 12px', fontSize: 13, color: BRAND_TEXT, textDecoration: 'none' }}
-        >
-          Anmelden, um Services zu sehen →
-        </a>
-      ) : (
-        <>
-          {/* Base app is always a first-class entry — that's where users land
-              to book new services. */}
-          <a
-            href={baseUrl}
-            role="menuitem"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              padding: '10px 12px',
-              borderRadius: 8,
-              textDecoration: 'none',
-              color: '#2C1E14',
-            }}
-          >
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                background: tint(10),
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <StackIcon size={18} />
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 500, fontSize: 13.5 }}>Base</div>
-              <div style={{ fontSize: 11.5, color: '#7A6A58', marginTop: 2 }}>
-                Katalog & Settings
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(7rem, 1fr))', gap: 4 }}>
+                {apps.map(tile)}
               </div>
-            </div>
-            <span
-              style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 9.5,
-                color: '#7A6A58',
-                padding: '2px 6px',
-                background: tint(8),
-                borderRadius: 4,
-                textTransform: 'uppercase',
-                letterSpacing: '0.1em',
-              }}
-            >
-              Hub
-            </span>
-          </a>
+            </section>
 
-          {ready.length === 0 ? (
-            <div style={{ padding: '8px 12px 12px', fontSize: 13, color: '#7A6A58' }}>
-              Noch keine aktiven Services.
-            </div>
-          ) : (
-            ready.map((b) => {
-              const active = b.service === config.appKey
-              return (
+            {orgs.length > 1 ? (
+              <section aria-label="Workspaces" style={{ display: 'grid', gap: 8, borderTop: `1px solid ${tint(12)}`, paddingTop: 12 }}>
+                <span style={{ ...LABEL, padding: '0 4px' }}>Deine Workspaces</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {orgs.map((o) => {
+                    const isCurrent = o.id === shell?.org?.id
+                    return (
+                      <span
+                        key={o.id}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '3px 12px 3px 4px',
+                          borderRadius: 99,
+                          fontSize: 12.5,
+                          border: `1px solid ${isCurrent ? BRAND : 'rgba(44,30,20,0.14)'}`,
+                          background: isCurrent ? tint(15) : 'rgba(44,30,20,0.03)',
+                          color: isCurrent ? BRAND_TEXT : INK,
+                        }}
+                      >
+                        <span aria-hidden style={{ width: 20, height: 20, borderRadius: 99, display: 'grid', placeItems: 'center', background: '#fff', border: '1px solid rgba(44,30,20,0.14)', fontFamily: MONO, fontSize: 9, color: MUTED }}>
+                          {o.name.slice(0, 2).toUpperCase()}
+                        </span>
+                        {o.name}
+                      </span>
+                    )
+                  })}
+                </div>
+              </section>
+            ) : null}
+
+            {isPlatformAdmin ? (
+              <section aria-label="Plattform" style={{ display: 'grid', gap: 6, borderTop: `1px solid ${tint(12)}`, paddingTop: 12 }}>
+                <span style={{ ...LABEL, padding: '0 4px' }}>
+                  Plattform · Workspace <span style={{ textTransform: 'none', letterSpacing: 0 }}>nur Super-Admins</span>
+                </span>
                 <a
-                  key={b.id}
-                  href={b.url ?? '#'}
-                  role="menuitem"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    padding: '10px 12px',
-                    borderRadius: 8,
-                    textDecoration: 'none',
-                    color: '#2C1E14',
-                    background: active ? tint(15) : 'transparent',
-                  }}
+                  href={baseSearchUrl(baseUrl, '')}
+                  data-testid="brand-switcher-platform"
+                  style={{ padding: '0 4px', fontSize: 13, color: BRAND_TEXT, textDecoration: 'none' }}
                 >
-                  <div
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 8,
-                      background: active ? tint(25) : 'rgba(176,138,122,0.25)',
-                      color: active ? BRAND_TEXT : '#B08A7A',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontFamily: "'Red Hat Display', system-ui, sans-serif",
-                      fontWeight: 600,
-                    }}
-                  >
-                    <ServiceIcon name={b.icon} label={b.label} />
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 500, fontSize: 13.5 }}>{b.label}</div>
-                    <div style={{ fontSize: 11.5, color: '#7A6A58', marginTop: 2 }}>
-                      {active ? 'aktuell geöffnet' : 'bereit'}
-                    </div>
-                  </div>
-                  {active ? (
-                    <span
-                      style={{
-                        fontFamily: "'JetBrains Mono', monospace",
-                        fontSize: 9.5,
-                        color: BRAND_TEXT,
-                        padding: '2px 6px',
-                        background: tint(15),
-                        borderRadius: 4,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.1em',
-                      }}
-                    >
-                      aktuell
-                    </span>
-                  ) : (
-                    <span
-                      style={{
-                        fontFamily: "'JetBrains Mono', monospace",
-                        fontSize: 9.5,
-                        color: '#3F8F5C',
-                        padding: '2px 6px',
-                        background: 'rgba(63,143,92,0.12)',
-                        borderRadius: 4,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.1em',
-                      }}
-                    >
-                      bereit
-                    </span>
-                  )}
+                  Unternehmen in Base wechseln →
                 </a>
-              )
-            })
-          )}
+              </section>
+            ) : null}
+          </>
+        )}
+      </div>
 
-          {/* Single-logout — clears this service's session AND the platform
-              SSO session (via <provider>/api/sso/signout). Present for every
-              consumer so logout is always reachable from the app-switcher. */}
-          <hr
-            style={{
-              border: 'none',
-              borderTop: `1px solid ${tint(12)}`,
-              margin: '6px 0',
-            }}
-          />
-          <a
-            href="/api/oidc/signout"
-            role="menuitem"
-            data-testid="brand-switcher-logout"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              padding: '10px 12px',
-              borderRadius: 8,
-              textDecoration: 'none',
-              color: '#B0413A',
-              fontWeight: 500,
-              fontSize: 13.5,
-            }}
-          >
-            Abmelden
-          </a>
-        </>
-      )}
+      {/* Logout clears both the local OIDC cookie and the upstream SSO session
+          (via <provider>/api/sso/signout), so it stays reachable here. */}
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: '4px 16px',
+          padding: '8px 16px',
+          borderTop: `1px solid ${tint(12)}`,
+          fontSize: 11.5,
+          color: MUTED,
+        }}
+      >
+        <span>↑↓ auswählen</span>
+        <span>↵ öffnen</span>
+        <span>{shortcut} öffnet und schließt</span>
+        <a
+          href="/api/oidc/signout"
+          data-testid="brand-switcher-logout"
+          style={{ marginLeft: 'auto', color: '#B0413A', fontWeight: 500, fontSize: 13, textDecoration: 'none' }}
+        >
+          Abmelden
+        </a>
+      </div>
     </div>
   ) : null
 

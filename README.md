@@ -5,7 +5,7 @@ Shared app shell for Reflagged services. Provides:
 - OIDC authentication (signin, callback, signout)
 - SSO session management (JWT cookie + Payload AuthStrategy)
 - `/api/shell-info` proxy for platform service catalog
-- `BrandSwitcher` component (app switcher dropdown)
+- `BrandSwitcher` component (app palette: icons, search, ⌘K / Ctrl+K)
 - Admin route SSO enforcement middleware
 
 Published as a **public npm package of raw TS/TSX source**. Consumers transpile
@@ -131,6 +131,16 @@ import { NotificationBell } from '@reflagged/shell/components/NotificationBell'
 
 <NotificationBell />
 ```
+
+## App palette
+
+`BrandSwitcher` opens on click or with ⌘K / Ctrl+K anywhere in the app. It
+shows every running app with its catalog icon and tagline, filters them as you
+type, and lists the user's workspaces. Platform admins get a "Plattform"
+section that links to the Base palette (`<baseUrl>/?palette=<query>`); the
+tenant switch itself runs in Base, where the platform session lives.
+
+Apps that bind ⌘K / Ctrl+K themselves should drop their own binding.
 
 ## Tenant branding
 
