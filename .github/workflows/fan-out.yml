@@ -41,6 +41,12 @@ jobs:
             -f q='"@reflagged/shell" org:rfl-gd filename:package.json' \
             -q '.items[] | select(.path == "package.json") | .repository.full_name' \
             | sort -u | grep -vx 'rfl-gd/rflgd-shell' | jq -R . | jq -sc .)
+          # The registry serves a fresh release a little after `npm publish`;
+          # bumping earlier fails every consumer with "No matching version".
+          for i in $(seq 1 30); do
+            [ "$(npm view "@reflagged/shell@$version" version 2>/dev/null)" = "$version" ] && break
+            sleep 10
+          done
           echo "Rolling out $version to: $repos"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "repos=$repos" >> "$GITHUB_OUTPUT"
