@@ -55,13 +55,26 @@ export async function GET(req: Request): Promise<NextResponse> {
 
   const params = oauth.validateAuthResponse(as, client, url, pkce.state)
 
-  const tokenResponse = await oauth.authorizationCodeGrantRequest(
-    as, client, clientAuth, params, env.redirectUri, pkce.codeVerifier,
-  )
-  const result = await oauth.processAuthorizationCodeResponse(as, client, tokenResponse, {
-    expectedNonce: pkce.nonce,
-    requireIdToken: true,
-  })
+  // The provider issued a code and may still refuse to exchange it. Seen live:
+  // after an "Einloggen als" session ended, the browser's provider session
+  // still belonged to the impersonated account, every code was minted for it,
+  // and every exchange came back invalid_grant — an unhandled throw, so a bare
+  // 500 on each reload.
+  let result: Awaited<ReturnType<typeof oauth.processAuthorizationCodeResponse>>
+  try {
+    const tokenResponse = await oauth.authorizationCodeGrantRequest(
+      as, client, clientAuth, params, env.redirectUri, pkce.codeVerifier,
+    )
+    result = await oauth.processAuthorizationCodeResponse(as, client, tokenResponse, {
+      expectedNonce: pkce.nonce,
+      requireIdToken: true,
+    })
+  } catch (error) {
+    if (!(error instanceof oauth.ResponseBodyError)) throw error
+    const res = deniedResponse(error.error, error.error_description ?? null)
+    res.cookies.delete(OIDC_STATE_COOKIE)
+    return res
+  }
 
   const claims = oauth.getValidatedIdTokenClaims(result)
   if (!claims) return NextResponse.json({ error: 'no-id-token' }, { status: 400 })
@@ -123,13 +136,25 @@ const escapeHtml = (v: string): string =>
  */
 export function deniedResponse(error: string, description: string | null): NextResponse {
   const status = error === 'access_denied' ? 403 : 400
+  // invalid_grant: the code belongs to a provider session that is no longer
+  // valid. Trying again lands in that same session, so the way out is to end
+  // it — signing out at the platform — not to ask an administrator.
+  const expired = error === 'invalid_grant'
   const headline =
-    error === 'access_denied' ? 'Kein Zugriff auf diese Anwendung' : 'Anmeldung fehlgeschlagen'
-  const detail =
-    description?.trim() ||
-    (error === 'access_denied'
-      ? 'Ihr Account ist dieser Anwendung nicht zugeordnet.'
-      : `Der Anmeldedienst hat die Anmeldung abgelehnt (${error}).`)
+    error === 'access_denied'
+      ? 'Kein Zugriff auf diese Anwendung'
+      : expired
+        ? 'Anmeldung abgelaufen'
+        : 'Anmeldung fehlgeschlagen'
+  const detail = expired
+    ? 'Die Anmeldung gehört zu einer Sitzung, die nicht mehr gilt — etwa nach dem Ende von „Einloggen als“. Melden Sie sich bei der Plattform ab und danach neu an.'
+    : description?.trim() ||
+      (error === 'access_denied'
+        ? 'Ihr Account ist dieser Anwendung nicht zugeordnet.'
+        : `Der Anmeldedienst hat die Anmeldung abgelehnt (${error}).`)
+  const next = expired
+    ? '<p><a href="/api/oidc/signout">Bei der Plattform abmelden</a></p>'
+    : '<p>Bitten Sie eine Administratorin oder einen Administrator Ihrer Organisation, Ihren Account für diese Anwendung freizuschalten.</p>\n  <p><a href="/">Zur Startseite</a></p>'
   const html = `<!doctype html>
 <html lang="de">
 <head>
@@ -150,8 +175,7 @@ export function deniedResponse(error: string, description: string | null): NextR
 <main>
   <h1>${escapeHtml(headline)}</h1>
   <p>${escapeHtml(detail)}</p>
-  <p>Bitten Sie eine Administratorin oder einen Administrator Ihrer Organisation, Ihren Account für diese Anwendung freizuschalten.</p>
-  <p><a href="/">Zur Startseite</a></p>
+  ${next}
   <p><small>Fehlercode: ${escapeHtml(error)}</small></p>
 </main>
 </body>

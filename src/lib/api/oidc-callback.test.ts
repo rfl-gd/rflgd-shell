@@ -72,3 +72,60 @@ describe('GET /api/oidc/callback with a provider error', () => {
     expect(res.headers.get('set-cookie')).toMatch(/rflgd-oidc-state=;/)
   })
 })
+
+/**
+ * The provider issued a code and then refused to exchange it. Seen live after
+ * an "Einloggen als" session ended: the browser's provider session still
+ * belonged to the impersonated account, every code was minted for it, and the
+ * exchange refused each one — an unhandled throw, so a bare HTTP 500, again
+ * on every reload.
+ */
+describe('GET /api/oidc/callback when the token exchange is refused', () => {
+  const discovery = {
+    issuer: 'https://id.example.test/oidc',
+    authorization_endpoint: 'https://id.example.test/oidc/auth',
+    token_endpoint: 'https://id.example.test/oidc/token',
+    jwks_uri: 'https://id.example.test/oidc/jwks',
+  }
+  const state = 'state-123'
+  const cookie = `rflgd-oidc-state=${encodeURIComponent(
+    JSON.stringify({ codeVerifier: 'v'.repeat(43), state, nonce: 'n', callback: '/chat' }),
+  )}`
+
+  const refusing = (error: string) =>
+    vi.fn(async (input: RequestInfo | URL) => {
+      const href = String(input instanceof Request ? input.url : input)
+      if (href.includes('.well-known')) return Response.json(discovery)
+      return Response.json(
+        { error, error_description: 'grant request is invalid' },
+        { status: 400 },
+      )
+    })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('answers invalid_grant with a page that signs out at the platform, not a 500', async () => {
+    vi.stubGlobal('fetch', refusing('invalid_grant'))
+
+    const res = await GET(callback(`code=abc&state=${state}`, cookie))
+
+    expect(res.status).toBe(400)
+    const body = await res.text()
+    expect(body).toContain('Anmeldung abgelaufen')
+    // A plain retry lands in the same dead provider session; signing out ends it.
+    expect(body).toContain('href="/api/oidc/signout"')
+    expect(body).toContain('invalid_grant')
+    expect(res.headers.get('set-cookie') ?? '').toContain('rflgd-oidc-state=;')
+  })
+
+  it('answers any other refused exchange with the readable error page', async () => {
+    vi.stubGlobal('fetch', refusing('invalid_client'))
+
+    const res = await GET(callback(`code=abc&state=${state}`, cookie))
+
+    expect(res.status).toBe(400)
+    expect(await res.text()).toContain('invalid_client')
+  })
+})
