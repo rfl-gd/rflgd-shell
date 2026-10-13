@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 
+import { fetchShellInfo, isOk } from '../lib/shell-info/fetch-shell-info'
+
 type ShellInfo = { unreadNotifications?: number; baseUrl?: string; org?: { tenantSlug?: string | null } | null }
 
 /**
@@ -21,10 +23,9 @@ export function NotificationBell({
 
   useEffect(() => {
     let cancelled = false
-    fetch('/api/shell-info', { credentials: 'include' })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: ShellInfo | null) => {
-        if (!cancelled) setInfo(data)
+    fetchShellInfo()
+      .then(({ status, body }) => {
+        if (!cancelled) setInfo(isOk(status) ? (body as ShellInfo | null) : null)
       })
       .catch(() => undefined)
     return () => {

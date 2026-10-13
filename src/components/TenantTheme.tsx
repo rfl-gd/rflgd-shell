@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 
+import { fetchShellInfo, isOk } from '../lib/shell-info/fetch-shell-info'
+
 const THEME_LINK_ID = 'rflgd-tenant-theme'
 
 /**
@@ -34,9 +36,9 @@ export function TenantTheme(): null {
   const [href, setHref] = useState<string | null>(null)
   useEffect(() => {
     let cancel = false
-    fetch('/api/shell-info', { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: { org?: { themeCssUrl?: string | null } | null } | null) => {
+    fetchShellInfo()
+      .then(({ status, body }) => {
+        const d = isOk(status) ? (body as { org?: { themeCssUrl?: string | null } | null } | null) : null
         if (!cancel) setHref(d?.org?.themeCssUrl ?? null)
       })
       .catch(() => undefined)
