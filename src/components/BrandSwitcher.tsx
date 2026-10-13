@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { loadAppConfig } from '../config'
 import { baseSearchUrl, isPaletteShortcut, matchApps, type PaletteApp } from '../lib/palette/palette'
+import { fetchShellInfo, isOk } from '../lib/shell-info/fetch-shell-info'
 import { ImpersonationCapsule, type ImpersonationInfo } from './ImpersonationCapsule'
 import { ServiceIcon } from './ServiceIcon'
 import { useTenantTheme } from './TenantTheme'
@@ -158,20 +159,18 @@ export function BrandSwitcher() {
 
   useEffect(() => {
     let cancel = false
-    fetch('/api/shell-info', { credentials: 'include' })
-      .then(async (r) => {
-        if (r.status === 401 || r.status === 403) {
+    fetchShellInfo()
+      .then(({ status, body }) => {
+        if (status === 401 || status === 403) {
           // The platform ended this session (e.g. an impersonation was
           // closed) and the route dropped it: reload into a fresh sign-in.
-          const body = (await r.json().catch(() => null)) as { error?: string } | null
-          if (!cancel && body?.error === 'session-ended') window.location.reload()
+          if (!cancel && (body as { error?: string } | null)?.error === 'session-ended') window.location.reload()
           setError(true)
-          return null
+          return
         }
-        return r.ok ? r.json() : null
-      })
-      .then((d) => {
-        if (!cancel && d) setShell(d)
+        if (!isOk(status)) return
+        if (!body) setError(true)
+        else if (!cancel) setShell(body as ShellInfo)
       })
       .catch(() => setError(true))
     return () => {
