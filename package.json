@@ -31,7 +31,9 @@
     "./components/ServiceIcon": "./src/components/ServiceIcon.tsx",
     "./notifications/notifier": "./src/lib/notifications/notifier.ts",
     "./components/NotificationBell": "./src/components/NotificationBell.tsx",
-    "./components/ImpersonationCapsule": "./src/components/ImpersonationCapsule.tsx"
+    "./components/ImpersonationCapsule": "./src/components/ImpersonationCapsule.tsx",
+    "./components/AiDisclosure": "./src/components/AiDisclosure.tsx",
+    "./shell-info": "./src/lib/shell-info/fetch-shell-info.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

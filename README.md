@@ -132,6 +132,40 @@ import { NotificationBell } from '@reflagged/shell/components/NotificationBell'
 <NotificationBell />
 ```
 
+### AI disclosure (`AiDisclosure`)
+
+Art. 50(1) EU AI Act: people must learn that they interact with an AI system,
+at the latest at the first interaction. Every module with an AI input or
+trigger renders one muted line right below it. The text comes from rflgd-base
+(`aiDisclosure` in `/api/shell-info`); until it arrives, the line shows the
+built-in fallback `KI-System der Reflagged GmbH`.
+
+```tsx
+import { AiDisclosure } from '@reflagged/shell/components/AiDisclosure'
+
+const disclosureId = useId()
+
+<textarea aria-describedby={disclosureId} />
+<AiDisclosure id={disclosureId} className="mt-1 text-xs text-muted" />
+```
+
+Pass `text` if the module already holds the shell data (`null` while it
+loads). Styling is up to the module; keep a contrast of at least 4.5:1.
+
+### Shared `/api/shell-info` request (`fetchShellInfo`)
+
+`BrandSwitcher`, `TenantTheme`, `NotificationBell` and `AiDisclosure` share
+one request while it is in flight. Parallel requests would each refresh an
+expired access token with the same refresh token, and the provider may revoke
+the grant for a reused refresh token. Module code that needs shell data should
+use the same function instead of its own `fetch`:
+
+```ts
+import { fetchShellInfo } from '@reflagged/shell/shell-info'
+
+const { status, body } = await fetchShellInfo()
+```
+
 ## Releasing
 
 Bump `version` in `package.json`, commit, tag `vX.Y.Z` and push the tag.
