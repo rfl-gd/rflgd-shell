@@ -55,16 +55,34 @@ export function faviconHref(
 export function useTenantFavicon(href: string | null | undefined): void {
   useEffect(() => {
     if (!href) return
-    const existing = document.getElementById(FAVICON_LINK_ID) as HTMLLinkElement | null
-    if (existing) {
-      if (existing.href !== href) existing.href = href
-      return
+
+    const apply = () => {
+      let link = document.getElementById(FAVICON_LINK_ID) as HTMLLinkElement | null
+      if (!link) {
+        link = document.createElement('link')
+        link.id = FAVICON_LINK_ID
+        link.rel = 'icon'
+      }
+      if (link.href !== href) link.href = href
+      // An app may ship icons of its own — the Payload admin does, one per
+      // colour scheme. Browsers take the last matching `rel=icon` in the head,
+      // and Next re-inserts its metadata links on every client navigation,
+      // after ours. Appending alone therefore holds only until the first
+      // in-app navigation, so the competitors go and ours is appended last.
+      for (const other of document.querySelectorAll<HTMLLinkElement>('link[rel~="icon"]')) {
+        if (other !== link) other.remove()
+      }
+      document.head.appendChild(link)
     }
-    const link = document.createElement('link')
-    link.id = FAVICON_LINK_ID
-    link.rel = 'icon'
-    link.href = href
-    document.head.appendChild(link)
+
+    apply()
+    // Guarded by the count: `apply` itself mutates the head, and without the
+    // check the observer would call it again on its own changes.
+    const observer = new MutationObserver(() => {
+      if (document.querySelectorAll('link[rel~="icon"]').length > 1) apply()
+    })
+    observer.observe(document.head, { childList: true })
+    return () => observer.disconnect()
   }, [href])
 }
 
