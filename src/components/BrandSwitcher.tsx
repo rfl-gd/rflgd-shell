@@ -6,7 +6,7 @@ import { loadAppConfig } from '../config'
 import { baseSearchUrl, isPaletteShortcut, matchApps, type PaletteApp } from '../lib/palette/palette'
 import { ImpersonationCapsule, type ImpersonationInfo } from './ImpersonationCapsule'
 import { ServiceIcon } from './ServiceIcon'
-import { useTenantTheme } from './TenantTheme'
+import { faviconHref, useTenantFavicon, useTenantTheme } from './TenantTheme'
 
 type Booking = {
   id: string
@@ -226,6 +226,7 @@ export function BrandSwitcher() {
   }, [open])
 
   useTenantTheme(shell?.org?.themeCssUrl)
+  useTenantFavicon(faviconHref(shell?.org))
 
   const orgName = shell?.org?.name ?? null
   const baseUrl = shell?.baseUrl ?? 'https://app.rfl.gd'
