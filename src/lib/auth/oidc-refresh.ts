@@ -6,9 +6,11 @@ type Refreshed = { accessToken: string; refreshToken: string | null; accessToken
 // Once the provider rotates refresh tokens, presenting one twice revokes the
 // whole grant. Parallel requests from one page carry the same expired
 // session, so they share a single refresh. The result stays shared for a
-// while after it lands, because requests sent before the browser stored the
-// renewed cookie still arrive with the old refresh token.
-const SHARED_RESULT_TTL_MS = 60_000
+// moment after it lands, because requests sent before the browser stored the
+// renewed cookie still arrive with the old refresh token. Kept short: within
+// this window a replayed old cookie gets the new tokens instead of tripping
+// the provider's reuse detection.
+const SHARED_RESULT_TTL_MS = 10_000
 const sharedRefreshes = new Map<string, Promise<Refreshed | null>>()
 
 export function refreshAccessToken(env: OidcEnv, refreshToken: string): Promise<Refreshed | null> {

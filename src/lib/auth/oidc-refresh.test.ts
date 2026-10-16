@@ -89,7 +89,7 @@ describe('refreshAccessToken', () => {
     const first = refreshAccessToken(env, token)
     await settle()
     await first
-    vi.advanceTimersByTime(60_000)
+    vi.advanceTimersByTime(10_000)
     const second = refreshAccessToken(env, token)
     await vi.waitFor(() => expect(grant.calls.length).toBe(2))
     grant.release()
