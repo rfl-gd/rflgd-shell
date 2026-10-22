@@ -123,6 +123,26 @@ addresses without a platform account are skipped. The token comes from the
 module client of the platform may request. Errors throw `NotifyError` with
 the HTTP `status` and the base's error `code`.
 
+#### Email: modules do not send mail themselves
+
+Every mail a module sends to a person goes through `notify()`. A module
+configures **no SMTP server, no mail adapter and no mail credentials** — no
+`@payloadcms/email-*`, no `nodemailer`, no `SMTP_*` variables in the manifest
+or compose file. The base owns the sender per tenant (own SMTP server,
+Microsoft 365 or the platform's `app@rfl.gd` with SPF/DKIM), the branding,
+the user's preferences, unsubscribe links and the delivery log.
+
+- `category: 'transactional'` for mails that must arrive (cannot be opted
+  out of), `'activity'` for everything else.
+- Only people with a platform account in the booking's organization can be
+  reached. Mail to outsiders (a tenant's own customers, newsletters) is not
+  supported — raise it with the platform team instead of adding a transport.
+- **Passwords are not a module concern.** Users sign in through the
+  platform's SSO; password reset, invitations and 2FA live in the base. The
+  local Payload login is a bootstrap fallback for the first admin only —
+  never hand out local module credentials to customers, because the module
+  cannot send them a reset mail.
+
 The bell shows the unread count (from `/api/shell-info`) and links to the
 central inbox:
 
