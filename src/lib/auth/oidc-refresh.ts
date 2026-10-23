@@ -1,10 +1,36 @@
 import * as oauth from 'oauth4webapi'
 import type { OidcEnv } from './oidc-config'
 
-export async function refreshAccessToken(
-  env: OidcEnv,
-  refreshToken: string,
-): Promise<{ accessToken: string; refreshToken: string | null; accessTokenExpiresAt: number } | null> {
+type Refreshed = { accessToken: string; refreshToken: string | null; accessTokenExpiresAt: number }
+
+// Once the provider rotates refresh tokens, presenting one twice revokes the
+// whole grant. Parallel requests from one page carry the same expired
+// session, so they share a single refresh. The result stays shared for a
+// moment after it lands, because requests sent before the browser stored the
+// renewed cookie still arrive with the old refresh token. Kept short: within
+// this window a replayed old cookie gets the new tokens instead of tripping
+// the provider's reuse detection.
+const SHARED_RESULT_TTL_MS = 10_000
+const sharedRefreshes = new Map<string, Promise<Refreshed | null>>()
+
+export function refreshAccessToken(env: OidcEnv, refreshToken: string): Promise<Refreshed | null> {
+  const key = `${env.issuer}\n${env.clientId}\n${refreshToken}`
+  const shared = sharedRefreshes.get(key)
+  if (shared) return shared
+
+  const refresh = requestRefresh(env, refreshToken)
+  sharedRefreshes.set(key, refresh)
+  void refresh.then((refreshed) => {
+    if (!refreshed) {
+      sharedRefreshes.delete(key)
+      return
+    }
+    setTimeout(() => sharedRefreshes.delete(key), SHARED_RESULT_TTL_MS).unref?.()
+  })
+  return refresh
+}
+
+async function requestRefresh(env: OidcEnv, refreshToken: string): Promise<Refreshed | null> {
   const issuerUrl = new URL(env.issuer)
   let as: oauth.AuthorizationServer
   try {
