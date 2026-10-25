@@ -123,6 +123,86 @@ addresses without a platform account are skipped. The token comes from the
 module client of the platform may request. Errors throw `NotifyError` with
 the HTTP `status` and the base's error `code`.
 
+#### Rich mails (`blocks`, since 1.9.0)
+
+`title`, `body` and one button are enough for a short note. For anything with
+structure — a status, facts, a table, a transcript — send `blocks`. A module
+chooses the building blocks; how they look (colours, fonts, logo, spacing)
+comes from the tenant's branding, rendered by the base with React Email. There
+is no HTML and no style property, so every module's mail looks like it
+belongs to the tenant and renders in Outlook, Gmail and Apple Mail alike.
+
+```ts
+import { createNotifier, type Block } from '@reflagged/shell/notifications/notifier'
+
+const blocks: Block[] = [
+  { type: 'callout', tone: 'warning', title: 'Rückruf nötig', text: 'Weitergabe zugesagt' },
+  {
+    type: 'facts',
+    items: [
+      { label: 'Anliegen', value: 'Angebot für einen Onlineshop' },
+      { label: 'Rückruf an', value: [{ text: '0721 952 795 78', href: 'tel:+4972195279578' }] },
+      { label: 'Dauer', value: '1:05 Min.' },
+    ],
+  },
+  {
+    type: 'section',
+    title: 'Gesprächsverlauf',
+    tone: 'outlined',
+    blocks: [
+      {
+        type: 'conversation',
+        messages: [
+          { speaker: 'Agent', side: 'end', text: 'Hallo, hier ist die digitale Assistenz.' },
+          { speaker: 'Anrufer', text: 'Ich möchte bitte zurückgerufen werden.' },
+        ],
+      },
+    ],
+  },
+]
+
+await createNotifier().notify({
+  idempotencyKey: `call-${call.id}-callback`,
+  topic: 'voice.call.callback',
+  category: 'transactional',
+  title: 'Rückrufwunsch – Angebot Onlineshop',  // subject and heading
+  body: 'Angebot für einen Onlineshop',          // short text for the inbox list
+  blocks,
+  actionUrl: `https://voice.acme.rfl.gd/calls/${call.id}`,
+  actionLabel: 'Anruf öffnen',                   // rendered as the last button
+  recipients: [{ role: 'org:admins' }],
+})
+```
+
+| Block | Fields | Use for |
+|---|---|---|
+| `heading` | `text`, `level?` 1–3 | sub-headings inside the mail |
+| `text` | `text`, `size?` sm/md/lg, `muted?`, `align?` | paragraphs; line breaks are kept |
+| `button` | `label`, `url`, `variant?` primary/secondary, `align?` | links as buttons (`tel:`/`mailto:` too) |
+| `image` | `src`, `alt`, `width?`, `href?`, `align?` | charts, screenshots — https on the booking's or tenant's domain |
+| `callout` | `tone` neutral/info/success/warning/danger, `title?`, `text?` | status banners; tone colours are fixed, not branded |
+| `facts` | `items[{ label, value }]` | label/value pairs |
+| `list` | `items[]`, `ordered?` | bullet or numbered lists |
+| `table` | `columns[{ label, align? }]`, `rows[][]` | tabular data, up to 8 columns / 200 rows |
+| `quote` | `text`, `cite?` | quoted statements |
+| `conversation` | `messages[{ speaker, text, side?, time? }]` | transcripts, chats; `side: 'end'` = the module's own side |
+| `code` | `code`, `language?` | logs, snippets (monospace) |
+| `divider`, `spacer` | `size?` | separation |
+| `section` | `blocks`, `title?`, `tone?` plain/muted/outlined | grouping |
+| `row` | `columns[{ blocks, width? }]` (2–4) | side-by-side content, e.g. key figures |
+
+Every `text`/`value`/cell is a `RichText`: a plain string, or spans for
+emphasis and links — `[{ text: 'fett', bold: true }, { text: ' und ' },
+{ text: 'Link', href: 'https://…' }]`. Markdown is **not** interpreted.
+
+Rules the base enforces (400 with the failing path otherwise): only the
+blocks above, no extra properties, links https/`tel:`/`mailto:`, images from
+the booking's or tenant's domains, at most 200 top-level blocks, 100 kB, and
+`section`/`row` nested three levels deep. The base also writes a plain-text
+part from the blocks and shows the full mail in the platform inbox. Without
+`blocks`, `body` is rendered as paragraphs as before. Types:
+`@reflagged/shell/notifications/blocks`.
+
 #### Email: modules do not send mail themselves
 
 Every mail a module sends to a person goes through `notify()`. A module

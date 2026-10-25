@@ -16,6 +16,10 @@
  * Modules send data, never HTML; the base renders and brands every mail.
  */
 
+import type { Block } from './blocks'
+
+export type { Block } from './blocks'
+
 export type NotificationRecipient =
   | { userId: number }
   | { email: string }
@@ -32,6 +36,11 @@ export type NotifyInput = {
   actionUrl?: string
   actionLabel?: string
   data?: Record<string, unknown>
+  /**
+   * Structured mail content (status, facts, tables, conversations, …). The
+   * base renders it in the tenant's branding; `body` stays the short inbox text.
+   */
+  blocks?: Block[]
   recipients: NotificationRecipient[]
 }
 

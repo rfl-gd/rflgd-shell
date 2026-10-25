@@ -1,6 +1,6 @@
 {
   "name": "@reflagged/shell",
-  "version": "1.8.1",
+  "version": "1.9.0",
   "description": "Shared app shell for Reflagged services — OIDC auth, SSO, app switcher",
   "type": "module",
   "sideEffects": false,
@@ -30,6 +30,7 @@
     "./package.json": "./package.json",
     "./components/ServiceIcon": "./src/components/ServiceIcon.tsx",
     "./notifications/notifier": "./src/lib/notifications/notifier.ts",
+    "./notifications/blocks": "./src/lib/notifications/blocks.ts",
     "./components/NotificationBell": "./src/components/NotificationBell.tsx",
     "./components/ImpersonationCapsule": "./src/components/ImpersonationCapsule.tsx"
   },
