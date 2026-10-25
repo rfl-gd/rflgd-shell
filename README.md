@@ -178,7 +178,7 @@ await createNotifier().notify({
 |---|---|---|
 | `heading` | `text`, `level?` 1–3 | sub-headings inside the mail |
 | `text` | `text`, `size?` sm/md/lg, `muted?`, `align?` | paragraphs; line breaks are kept |
-| `button` | `label`, `url`, `variant?` primary/secondary, `align?` | links as buttons (`tel:`/`mailto:` too) |
+| `button` | `label`, `url`, `variant?` primary/secondary, `align?` | actions — https on the booking's or tenant's domain (like `actionUrl`), or `tel:`/`mailto:` |
 | `image` | `src`, `alt`, `width?`, `href?`, `align?` | charts, screenshots — https on the booking's or tenant's domain |
 | `callout` | `tone` neutral/info/success/warning/danger, `title?`, `text?` | status banners; tone colours are fixed, not branded |
 | `facts` | `items[{ label, value }]` | label/value pairs |
@@ -196,8 +196,9 @@ emphasis and links — `[{ text: 'fett', bold: true }, { text: ' und ' },
 { text: 'Link', href: 'https://…' }]`. Markdown is **not** interpreted.
 
 Rules the base enforces (400 with the failing path otherwise): only the
-blocks above, no extra properties, links https/`tel:`/`mailto:`, images from
-the booking's or tenant's domains, at most 200 top-level blocks, 100 kB, and
+blocks above, no extra properties, links https/`tel:`/`mailto:`; images and
+button links only on the booking's or tenant's domains (inline span links may
+point to any https page, e.g. a source), at most 200 top-level blocks, 100 kB, and
 `section`/`row` nested three levels deep. The base also writes a plain-text
 part from the blocks and shows the full mail in the platform inbox. Without
 `blocks`, `body` is rendered as paragraphs as before. Types:

@@ -11,8 +11,9 @@
  * an invalid block answers 400 with the path of the offending field.
  *
  * Limits: 200 top-level blocks, 100 kB as JSON, `section`/`row` nested at most
- * three levels. Links: https, `tel:` or `mailto:`. Images: https on a domain of
- * the booking or the tenant (anything else would be a tracking pixel).
+ * three levels. Links: https, `tel:` or `mailto:`. Images and button links:
+ * https on a domain of the booking or the tenant (a foreign image is a tracking
+ * pixel, a foreign button a phishing lure); inline span links may go anywhere.
  */
 
 /** A run of text with optional emphasis or a link. */
@@ -43,6 +44,7 @@ export type TextBlock = {
 export type ButtonBlock = {
   type: 'button'
   label: string
+  /** https on a domain of the booking or the tenant, or tel:/mailto:. */
   url: string
   variant?: 'primary' | 'secondary'
   align?: Align
