@@ -14,6 +14,7 @@ import {
   PenTool,
   ShieldCheck,
   Users,
+  Waypoints,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -49,6 +50,7 @@ const ICONS: Record<string, LucideIcon> = {
   PenTool,
   ShieldCheck,
   Users,
+  Waypoints,
 }
 
 export function ServiceIcon({
