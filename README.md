@@ -261,7 +261,8 @@ Apps that bind ⌘K / Ctrl+K themselves should drop their own binding.
 
 The trigger is named by what it shows — app label, workspace — followed by
 "Apps wechseln", so speech input finds it by its visible text (WCAG 2.5.3).
-Style or query it with `[data-brand-switcher]`, not by its name.
+Style or query it with `button[data-brand-switcher]`, not by its name (the open
+palette carries `data-brand-switcher` too).
 
 ## Tenant branding
 
