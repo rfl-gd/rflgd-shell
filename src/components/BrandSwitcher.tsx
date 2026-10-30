@@ -121,6 +121,17 @@ const KBD: React.CSSProperties = {
   padding: '0 5px',
   whiteSpace: 'nowrap',
 }
+const VISUALLY_HIDDEN: React.CSSProperties = {
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  margin: -1,
+  padding: 0,
+  overflow: 'hidden',
+  clip: 'rect(0, 0, 0, 0)',
+  whiteSpace: 'nowrap',
+  border: 0,
+}
 
 function AppGlyph({ app, size }: { app: PaletteApp; size: number }) {
   return app.icon === null ? <StackIcon size={size} /> : <ServiceIcon name={app.icon} label={app.label} size={size} />
@@ -286,7 +297,10 @@ export function BrandSwitcher() {
         onClick={toggle}
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label="Apps wechseln"
+        aria-keyshortcuts={shortcut === '⌘K' ? 'Meta+K' : 'Control+K'}
+        // A stable hook for app styles and tests. The accessible name is the
+        // visible label plus "Apps wechseln" (WCAG 2.5.3), so it varies per app.
+        data-brand-switcher=""
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -331,7 +345,10 @@ export function BrandSwitcher() {
             {orgName ? `${orgName} · rfl.gd` : 'rfl.gd'}
           </div>
         </div>
-        <span style={{ ...KBD, marginLeft: 4 }}>{shortcut}</span>
+        <span aria-hidden="true" style={{ ...KBD, marginLeft: 4 }}>
+          {shortcut}
+        </span>
+        <span style={VISUALLY_HIDDEN}>Apps wechseln</span>
       </button>
     </div>
   )

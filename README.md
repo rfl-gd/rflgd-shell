@@ -259,6 +259,10 @@ tenant switch itself runs in Base, where the platform session lives.
 
 Apps that bind ⌘K / Ctrl+K themselves should drop their own binding.
 
+The trigger is named by what it shows — app label, workspace — followed by
+"Apps wechseln", so speech input finds it by its visible text (WCAG 2.5.3).
+Style or query it with `[data-brand-switcher]`, not by its name.
+
 ## Tenant branding
 
 `BrandSwitcher` shows the tenant's logo mark and loads the tenant palette from
