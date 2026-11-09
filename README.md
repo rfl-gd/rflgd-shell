@@ -233,6 +233,35 @@ import { NotificationBell } from '@reflagged/shell/components/NotificationBell'
 <NotificationBell />
 ```
 
+### Module settings (`createModuleSettings`, since 1.10.0)
+
+Settings a module declares in its manifest (`service-templates/<key>/manifest.json`
+in the base, block `settings`) are stored per tenant in the base and edited by
+platform and tenant admins there. The module only reads them, server-side:
+
+```ts
+import { createModuleSettings } from '@reflagged/shell/settings'
+
+export const settings = createModuleSettings()
+
+// In a route, access function, job …
+if (!(await settings.get('documents.enabled', true))) return forbidden()
+
+// Where only a synchronous answer works (e.g. Payload `admin.hidden`):
+const hidden = !settings.peek('documents.enabled', true)
+```
+
+- Uses the module's own OIDC client (`OIDC_ISSUER`, `OIDC_CLIENT_ID`,
+  `OIDC_CLIENT_SECRET`) with `client_credentials` and scope `settings:read`;
+  the base derives tenant and module from the token.
+- One request loads all values; they are cached for 60 s (`ttlMs`) and
+  revalidated with an ETag. A change in the base reaches the module within
+  that window.
+- Never throws, never blocks start-up. Until the base has answered once, and
+  whenever a value is missing or has another type, the fallback applies — pass
+  the manifest default. After an outage the last good values stay in use.
+- Enforce switches on the server (API, access, jobs), not only in the UI.
+
 ## Releasing
 
 Bump `version` in `package.json`, commit, tag `vX.Y.Z` and push the tag.

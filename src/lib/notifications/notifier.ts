@@ -16,6 +16,7 @@
  * Modules send data, never HTML; the base renders and brands every mail.
  */
 
+import { createClientCredentials, resolveClientCredentials, TokenRequestError } from '../auth/client-credentials'
 import type { Block } from './blocks'
 
 export type { Block } from './blocks'
@@ -65,39 +66,23 @@ type NotifierOptions = {
 }
 
 const SCOPE = 'notifications:write'
-const EXPIRY_SKEW_MS = 60_000
 
 export function createNotifier(options: NotifierOptions = {}) {
-  const issuer = (options.issuer ?? process.env.OIDC_ISSUER ?? '').replace(/\/$/, '')
-  const clientId = options.clientId ?? process.env.OIDC_CLIENT_ID ?? ''
-  const clientSecret = options.clientSecret ?? process.env.OIDC_CLIENT_SECRET ?? ''
-  const doFetch = options.fetch ?? fetch
-  if (!issuer || !clientId || !clientSecret) {
+  const config = resolveClientCredentials(options)
+  if (!config) {
     throw new Error('createNotifier: OIDC_ISSUER, OIDC_CLIENT_ID and OIDC_CLIENT_SECRET are required')
   }
-  const baseUrl = issuer.replace(/\/oidc$/, '')
-  let cached: { token: string; expiresAt: number } | null = null
+  const doFetch = options.fetch ?? fetch
+  const { baseUrl } = config
+  const credentials = createClientCredentials(config, SCOPE, doFetch)
 
   async function token(): Promise<string> {
-    if (cached && cached.expiresAt - EXPIRY_SKEW_MS > Date.now()) return cached.token
-    const res = await doFetch(`${issuer}/token`, {
-      method: 'POST',
-      headers: {
-        authorization: `Basic ${btoa(`${encodeURIComponent(clientId)}:${encodeURIComponent(clientSecret)}`)}`,
-        'content-type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({ grant_type: 'client_credentials', scope: SCOPE }),
-    })
-    const body = (await res.json().catch(() => ({}))) as {
-      access_token?: string
-      expires_in?: number
-      error?: string
+    try {
+      return await credentials.token()
+    } catch (err) {
+      if (err instanceof TokenRequestError) throw new NotifyError(err.message, err.status, err.code)
+      throw err
     }
-    if (!res.ok || !body.access_token) {
-      throw new NotifyError(`token request failed: ${body.error ?? res.status}`, res.status, body.error ?? 'token')
-    }
-    cached = { token: body.access_token, expiresAt: Date.now() + (body.expires_in ?? 600) * 1000 }
-    return cached.token
   }
 
   async function send(input: NotifyInput, accessToken: string): Promise<Response> {
@@ -112,7 +97,7 @@ export function createNotifier(options: NotifierOptions = {}) {
     async notify(input: NotifyInput): Promise<NotifyResult> {
       let res = await send(input, await token())
       if (res.status === 401) {
-        cached = null
+        credentials.reset()
         res = await send(input, await token())
       }
       const body = (await res.json().catch(() => ({}))) as {
