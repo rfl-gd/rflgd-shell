@@ -32,6 +32,10 @@ type Options = {
   fetch?: typeof fetch
   /** Cache window, default 60 s. */
   ttlMs?: number
+  /** Per request to the base (token and settings), default 3 s. */
+  requestTimeoutMs?: number
+  /** Pause after a failed load before the next attempt, default 10 s. */
+  retryAfterMs?: number
 }
 
 const SCOPE = 'settings:read'
@@ -40,17 +44,26 @@ export function createModuleSettings(options: Options = {}): ModuleSettings {
   const config = resolveClientCredentials(options)
   const doFetch = options.fetch ?? fetch
   const ttlMs = options.ttlMs ?? 60_000
-  const credentials = config ? createClientCredentials(config, SCOPE, doFetch) : null
+  const requestTimeoutMs = options.requestTimeoutMs ?? 3_000
+  const retryAfterMs = options.retryAfterMs ?? 10_000
+  // A base that accepts the connection but never answers must not hold up the
+  // module: every call to it gets a deadline.
+  const timedFetch: typeof fetch = (input, init) =>
+    doFetch(input, { ...init, signal: AbortSignal.timeout(requestTimeoutMs) })
+  const credentials = config ? createClientCredentials(config, SCOPE, timedFetch) : null
 
   let values: Record<string, unknown> = {}
   let etag: string | null = null
+  /** When the cached values were last confirmed. */
   let loadedAt = 0
+  /** No new attempt before this time after a failure. */
+  let retryAt = 0
   let inFlight: Promise<void> | null = null
 
   async function request(token: string): Promise<Response> {
     const headers: Record<string, string> = { authorization: `Bearer ${token}` }
     if (etag) headers['if-none-match'] = etag
-    return doFetch(`${config?.baseUrl}/api/modules/settings`, { headers, cache: 'no-store' })
+    return timedFetch(`${config?.baseUrl}/api/modules/settings`, { headers, cache: 'no-store' })
   }
 
   async function load(): Promise<void> {
@@ -69,12 +82,17 @@ export function createModuleSettings(options: Options = {}): ModuleSettings {
         success?: boolean
         data?: { values?: Record<string, unknown> }
       } | null
-      if (!res.ok || !body?.success || !body.data?.values) return
+      if (!res.ok || !body?.success || !body.data?.values) {
+        retryAt = Date.now() + retryAfterMs
+        return
+      }
       values = body.data.values
       etag = res.headers.get('etag')
       loadedAt = Date.now()
     } catch {
-      // Unreachable base: keep the last good values (or the fallbacks).
+      // Unreachable or hanging base: keep the last good values (or the
+      // fallbacks) and back off instead of asking on every request.
+      retryAt = Date.now() + retryAfterMs
     }
   }
 
@@ -85,7 +103,7 @@ export function createModuleSettings(options: Options = {}): ModuleSettings {
     return inFlight
   }
 
-  const isStale = () => Date.now() - loadedAt >= ttlMs
+  const isStale = () => Date.now() - loadedAt >= ttlMs && Date.now() >= retryAt
 
   function pick<T extends SettingValue>(key: string, fallback: T): T {
     const value = values[key]

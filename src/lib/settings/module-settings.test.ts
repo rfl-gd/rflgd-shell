@@ -102,4 +102,35 @@ describe('createModuleSettings', () => {
     expect(await settings.get('a', 'x')).toBe('x')
     expect(fetch).not.toHaveBeenCalled()
   })
+
+  it('gives up on a base that does not answer and returns the fallback', async () => {
+    const fetch = vi.fn(
+      (url: string, init?: RequestInit) =>
+        new Promise<Response>((resolve, reject) => {
+          if (url.endsWith('/oidc/token')) {
+            resolve(new Response(JSON.stringify({ access_token: 'tok', expires_in: 600 }), { status: 200 }))
+            return
+          }
+          init?.signal?.addEventListener('abort', () => reject(new Error('aborted')))
+        }),
+    )
+    const settings = createModuleSettings({ ...env, fetch: fetch as never, requestTimeoutMs: 20 })
+    expect(await settings.get('documents.enabled', true)).toBe(true)
+  })
+
+  it('waits before asking again after a failed load', async () => {
+    vi.useFakeTimers()
+    try {
+      const base = fakeBase([{ status: 500 }, { status: 500 }, { status: 200, body: values({ a: 1 }) }])
+      const settings = createModuleSettings({ ...env, fetch: base.fetch, ttlMs: 60_000, retryAfterMs: 10_000 })
+      await settings.get('a', 0)
+      await settings.get('a', 0)
+      expect(base.settingsCalls).toHaveLength(1)
+      vi.advanceTimersByTime(10_001)
+      await settings.get('a', 0)
+      expect(base.settingsCalls).toHaveLength(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

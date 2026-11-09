@@ -257,7 +257,8 @@ const hidden = !settings.peek('documents.enabled', true)
 - One request loads all values; they are cached for 60 s (`ttlMs`) and
   revalidated with an ETag. A change in the base reaches the module within
   that window.
-- Never throws, never blocks start-up. Until the base has answered once, and
+- Never throws, never blocks start-up. Each call to the base has a 3 s deadline
+  (`requestTimeoutMs`); after a failure it waits 10 s (`retryAfterMs`) before asking again. Until the base has answered once, and
   whenever a value is missing or has another type, the fallback applies — pass
   the manifest default. After an outage the last good values stay in use.
 - Enforce switches on the server (API, access, jobs), not only in the UI.
