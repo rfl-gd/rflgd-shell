@@ -45,6 +45,31 @@ export function faviconHref(
 }
 
 /**
+ * Makes the tenant icon the one the browser shows, without detaching a node.
+ *
+ * An app may ship icons of its own (the Payload admin does, one per colour
+ * scheme), rendered by React, and Next re-inserts them on every client
+ * navigation, after ours. Those nodes belong to React: removing them makes its
+ * next commit fail on a missing parent and the navigation never finishes. So
+ * they stay in place, switched off with `media="not all"`, and ours is moved to
+ * the end, where browsers look last.
+ *
+ * Appends only when ours is not already the last icon: the caller runs this
+ * from a MutationObserver on the head, which would otherwise fire on its own
+ * change forever.
+ */
+export function keepTenantFaviconLast(
+  head: Pick<HTMLHeadElement, 'querySelectorAll' | 'appendChild'>,
+  link: HTMLLinkElement,
+): void {
+  const icons = [...head.querySelectorAll<HTMLLinkElement>('link[rel~="icon"]')]
+  for (const other of icons) {
+    if (other !== link && other.media !== 'not all') other.media = 'not all'
+  }
+  if (icons.at(-1) !== link) head.appendChild(link)
+}
+
+/**
  * Points the browser tab at the tenant's logo.
  *
  * Set from the client, because the modules share this package rather than a
@@ -64,23 +89,11 @@ export function useTenantFavicon(href: string | null | undefined): void {
         link.rel = 'icon'
       }
       if (link.href !== href) link.href = href
-      // An app may ship icons of its own — the Payload admin does, one per
-      // colour scheme. Browsers take the last matching `rel=icon` in the head,
-      // and Next re-inserts its metadata links on every client navigation,
-      // after ours. Appending alone therefore holds only until the first
-      // in-app navigation, so the competitors go and ours is appended last.
-      for (const other of document.querySelectorAll<HTMLLinkElement>('link[rel~="icon"]')) {
-        if (other !== link) other.remove()
-      }
-      document.head.appendChild(link)
+      keepTenantFaviconLast(document.head, link)
     }
 
     apply()
-    // Guarded by the count: `apply` itself mutates the head, and without the
-    // check the observer would call it again on its own changes.
-    const observer = new MutationObserver(() => {
-      if (document.querySelectorAll('link[rel~="icon"]').length > 1) apply()
-    })
+    const observer = new MutationObserver(apply)
     observer.observe(document.head, { childList: true })
     return () => observer.disconnect()
   }, [href])
