@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 
+import { fetchShellInfo, isOk } from '../lib/shell-info/fetch-shell-info'
+
 const THEME_LINK_ID = 'rflgd-tenant-theme'
 const FAVICON_LINK_ID = 'rflgd-tenant-favicon'
 
@@ -108,23 +110,21 @@ export function TenantTheme(): null {
   const [icon, setIcon] = useState<string | null>(null)
   useEffect(() => {
     let cancel = false
-    fetch('/api/shell-info', { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then(
-        (
-          d: {
-            org?: {
-              themeCssUrl?: string | null
-              logoMarkUrl?: string | null
-              logoUrl?: string | null
-            } | null
-          } | null,
-        ) => {
-          if (cancel) return
-          setHref(d?.org?.themeCssUrl ?? null)
-          setIcon(faviconHref(d?.org))
-        },
-      )
+    fetchShellInfo()
+      .then(({ status, body }) => {
+        const d = isOk(status)
+          ? (body as {
+              org?: {
+                themeCssUrl?: string | null
+                logoMarkUrl?: string | null
+                logoUrl?: string | null
+              } | null
+            } | null)
+          : null
+        if (cancel) return
+        setHref(d?.org?.themeCssUrl ?? null)
+        setIcon(faviconHref(d?.org))
+      })
       .catch(() => undefined)
     return () => {
       cancel = true

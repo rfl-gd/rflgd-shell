@@ -33,7 +33,9 @@
     "./settings": "./src/lib/settings/module-settings.ts",
     "./notifications/blocks": "./src/lib/notifications/blocks.ts",
     "./components/NotificationBell": "./src/components/NotificationBell.tsx",
-    "./components/ImpersonationCapsule": "./src/components/ImpersonationCapsule.tsx"
+    "./components/ImpersonationCapsule": "./src/components/ImpersonationCapsule.tsx",
+    "./components/AiDisclosure": "./src/components/AiDisclosure.tsx",
+    "./shell-info": "./src/lib/shell-info/fetch-shell-info.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
