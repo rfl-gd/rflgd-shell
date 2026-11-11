@@ -45,7 +45,7 @@
   },
   "peerDependencies": {
     "lucide-react": ">=0.400.0",
-    "next": "^15.4.0",
+    "next": "^15.4.0 || ^16.0.0",
     "payload": "^3.79.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
