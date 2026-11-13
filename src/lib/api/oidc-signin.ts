@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server'
 import * as oauth from 'oauth4webapi'
 
-import { OIDC_STATE_COOKIE, loadOidcEnv, oidcScopes, secureCookies } from '../auth/oidc-config'
+import { isSessionAccessRevoked } from '../directory/user-access'
+import { OIDC_STATE_COOKIE, loadOidcEnv, oidcScopes, providerOrigin, secureCookies } from '../auth/oidc-config'
+import { sessionCookieValue, verifySessionCookie } from '../auth/oidc-cookie'
+import { clearSessionCookie } from './oidc-signout'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -10,6 +13,17 @@ export async function GET(req: Request): Promise<NextResponse> {
   const env = loadOidcEnv()
   if (!env) {
     return NextResponse.json({ error: 'oidc-not-configured' }, { status: 500 })
+  }
+
+  // A session the base revoked lands here when the module stops accepting it.
+  // Signing in again would only hit the base's own access gate, so end the
+  // session and show the base's no-access page instead.
+  const sessionToken = sessionCookieValue(req.headers.get('cookie'))
+  const session = sessionToken ? await verifySessionCookie(env.authSecret, sessionToken) : null
+  if (session && isSessionAccessRevoked(session.sub)) {
+    const res = NextResponse.redirect(`${providerOrigin(env)}/apps?error=no-access`)
+    clearSessionCookie(res)
+    return res
   }
 
   const url = new URL(req.url)

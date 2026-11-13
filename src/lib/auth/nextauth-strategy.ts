@@ -2,8 +2,8 @@ import { randomBytes } from 'node:crypto'
 import type { AuthStrategy } from 'payload'
 
 import { loadAppConfig } from '../../config'
-import { OIDC_COOKIE } from './oidc-config'
-import { verifySessionCookie } from './oidc-cookie'
+import { isSessionAccessRevoked } from '../directory/user-access'
+import { sessionCookieValue, verifySessionCookie } from './oidc-cookie'
 
 /** What the platform knows about a person signing in for the first time. */
 export type NewUserContext = {
@@ -67,17 +67,16 @@ export function createOidcStrategy(options?: {
       const secret = process.env.AUTH_SECRET
       if (!secret) return { user: null }
 
-      const cookieHeader = headers.get('cookie') ?? ''
-      const cookieStart = `${OIDC_COOKIE}=`
-      const segment = cookieHeader
-        .split(';')
-        .map((c) => c.trim())
-        .find((c) => c.startsWith(cookieStart))
-      if (!segment) return { user: null }
+      const token = sessionCookieValue(headers.get('cookie'))
+      if (!token) return { user: null }
 
-      const token = segment.slice(cookieStart.length)
       const session = await verifySessionCookie(secret, token)
       if (!session?.email) return { user: null }
+      // The base said this user lost access to the module. The admin then
+      // falls back to the sign-in route, which clears the cookie and sends the
+      // user to the base. Never waits for the base; unknown answers keep the
+      // session.
+      if (isSessionAccessRevoked(session.sub)) return { user: null }
 
       const existing = await payload.find({
         collection: 'users',
