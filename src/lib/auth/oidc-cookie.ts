@@ -1,6 +1,6 @@
 import { SignJWT, jwtVerify } from 'jose'
 import type { OidcSessionToken } from './oidc-config'
-import { OIDC_SESSION_TTL } from './oidc-config'
+import { OIDC_COOKIE, OIDC_SESSION_TTL } from './oidc-config'
 
 const ALG = 'HS256'
 
@@ -77,4 +77,14 @@ export async function verifySessionCookie(
   } catch {
     return null
   }
+}
+
+/** The session cookie's raw value from a `Cookie` request header, or null. */
+export function sessionCookieValue(cookieHeader: string | null): string | null {
+  const cookieStart = `${OIDC_COOKIE}=`
+  const segment = (cookieHeader ?? '')
+    .split(';')
+    .map((c) => c.trim())
+    .find((c) => c.startsWith(cookieStart))
+  return segment ? segment.slice(cookieStart.length) : null
 }

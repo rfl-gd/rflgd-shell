@@ -263,6 +263,43 @@ const hidden = !settings.peek('documents.enabled', true)
   the manifest default. After an outage the last good values stay in use.
 - Enforce switches on the server (API, access, jobs), not only in the UI.
 
+### Groups, roles and access (`@reflagged/shell/directory`, since 1.11.0)
+
+The base keeps a tenant's groups (manual or mirrored from Microsoft Entra) and
+assigns the roles a module declares in its manifest (`roles`, or
+`"directoryAccess": true` for a module that only reads groups). The module asks
+per request, server-side:
+
+```ts
+import { getUserAccess, hasRole, inGroup, listGroups } from '@reflagged/shell/directory'
+
+const me = await getUserAccess(session.sub) // { access, groups, roles }, never throws
+if (!hasRole(me, 'editor')) return forbidden()
+const mayRead = inGroup(me, area.groupId) // store grants against the group id, never the name
+
+const allGroups = await listGroups() // for share dialogs, `removed` included; [] when unknown
+```
+
+- Same OIDC client and env vars as the settings, scope `directory:read`.
+- Cached per user for 5 minutes, then revalidated with an ETag; 3 s deadline
+  per call, 10 s pause after a failure, at most 1 000 users in memory.
+- When the base cannot answer, the last good value is used for up to 60
+  minutes after it was fetched; after that, or when there never was one, the
+  result is `{ access: true, groups: [], roles: [] }` ("unknown") — allow only
+  what needs no role and no group. A `404` from the base is
+  `{ access: false, groups: [], roles: [] }`.
+- A module that declares neither roles nor `directoryAccess` gets `403` from the
+  base; the client then answers "unknown" and asks again only after 60 minutes.
+- **Session enforcement.** The Payload strategy (`createOidcStrategy`) stops
+  accepting a session once the base definitively says `access: false` (or
+  `404`); the admin then falls back to `/api/oidc/signin`, which clears the
+  session cookie and redirects to `{base}/?error=no-access`. The check uses the
+  cache only and refreshes in the background, so it adds no latency and a slow
+  or failing base never ends a session. `RFLGD_DIRECTORY_ENFORCE=false` turns
+  the enforcement off; the client API keeps working. Apps that read the
+  session cookie themselves (no Payload strategy) can call
+  `isSessionAccessRevoked(sub)` the same way.
+
 ## Releasing
 
 Bump `version` in `package.json`, commit, tag `vX.Y.Z` and push the tag.

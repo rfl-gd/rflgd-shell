@@ -10,7 +10,7 @@ import {
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-function clearSession(res: NextResponse): void {
+export function clearSessionCookie(res: NextResponse): void {
   // Explicit attributes so the delete actually matches the cookie set at login.
   res.cookies.set(OIDC_COOKIE, '', {
     httpOnly: true,
@@ -29,7 +29,7 @@ export async function GET(req: Request): Promise<NextResponse> {
 
   if (!env) {
     const res = NextResponse.redirect(localLanding)
-    clearSession(res)
+    clearSessionCookie(res)
     return res
   }
 
@@ -38,7 +38,7 @@ export async function GET(req: Request): Promise<NextResponse> {
   target.searchParams.set('post_logout_redirect_uri', localLanding)
 
   const res = NextResponse.redirect(target)
-  clearSession(res)
+  clearSessionCookie(res)
   return res
 }
 
