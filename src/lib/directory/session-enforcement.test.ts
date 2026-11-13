@@ -115,7 +115,7 @@ describe('sign-in route', () => {
       }),
     )
     expect(res.status).toBe(307)
-    expect(res.headers.get('location')).toBe('https://base.test/?error=no-access')
+    expect(res.headers.get('location')).toBe('https://base.test/apps?error=no-access')
     const cleared = res.cookies.get(OIDC_COOKIE)
     expect(cleared?.value).toBe('')
     expect(cleared?.maxAge).toBe(0)

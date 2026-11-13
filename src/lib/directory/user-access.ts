@@ -14,7 +14,7 @@
  * if (!hasRole(me, 'editor')) return forbidden()
  * ```
  */
-import { createClientCredentials, resolveClientCredentials } from '../auth/client-credentials'
+import { TokenRequestError, createClientCredentials, resolveClientCredentials } from '../auth/client-credentials'
 
 export type UserAccess = {
   access: boolean
@@ -151,8 +151,13 @@ export function createDirectoryClient(options: Options = {}): DirectoryClient {
       }
       const value = res.ok && body?.success ? read(body.data) : null
       return value ? { kind: 'value', value, etag: res.headers.get('etag') } : null
-    } catch {
-      // Unreachable or hanging base, or no token: handled like any failure below.
+    } catch (err) {
+      // The token endpoint refusing the request (e.g. `invalid_scope` from an
+      // older base) means this module cannot take part, like a 403 does.
+      if (err instanceof TokenRequestError && err.status >= 400 && err.status < 500 && err.status !== 401) {
+        return { kind: 'forbidden' }
+      }
+      // Unreachable or hanging base, or a rejected client: handled like any failure below.
       return null
     }
   }
@@ -224,6 +229,7 @@ export function createDirectoryClient(options: Options = {}): DirectoryClient {
       const entry = users.get(sub)
       if (!isFresh(entry) && mayAsk()) void refreshUser(sub)
       if (Date.now() < forbiddenUntil) return false
+      // A stale denial still counts (intended): it was a definitive base answer, bounded by the 60-minute window.
       return isUsable(entry) && entry!.value.access === false
     },
   }

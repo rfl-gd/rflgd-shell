@@ -115,6 +115,40 @@ describe('getUserAccess', () => {
     expect(await directory.getUserAccess('u1')).toEqual(UNKNOWN)
   })
 
+  it('backs off for 60 minutes when the token endpoint refuses the scope', async () => {
+    const fetch = vi.fn(async () => new Response(JSON.stringify({ error: 'invalid_scope' }), { status: 400 }))
+    const directory = createDirectoryClient({ ...env, fetch: fetch as never })
+    expect(await directory.getUserAccess('u1')).toEqual(UNKNOWN)
+    vi.advanceTimersByTime(59 * MINUTE)
+    expect(await directory.getUserAccess('u2')).toEqual(UNKNOWN)
+    expect(await directory.listGroups()).toEqual([])
+    expect(fetch).toHaveBeenCalledTimes(1)
+    vi.advanceTimersByTime(MINUTE)
+    await directory.getUserAccess('u2')
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([
+    ['a 401', 401],
+    ['a 500', 500],
+  ])('keeps the short back-off when the token endpoint answers %s', async (_, status) => {
+    const fetch = vi.fn(async () => new Response(JSON.stringify({ error: 'x' }), { status }))
+    const directory = createDirectoryClient({ ...env, fetch: fetch as never, retryAfterMs: 10_000 })
+    await directory.getUserAccess('u1')
+    vi.advanceTimersByTime(10_000)
+    await directory.getUserAccess('u1')
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps the short back-off when the token endpoint is unreachable', async () => {
+    const fetch = vi.fn(async () => Promise.reject(new Error('ECONNREFUSED')))
+    const directory = createDirectoryClient({ ...env, fetch: fetch as never, retryAfterMs: 10_000 })
+    await directory.getUserAccess('u1')
+    vi.advanceTimersByTime(10_000)
+    await directory.getUserAccess('u1')
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
   it('treats 401 and 5xx as unknown', async () => {
     const base = fakeBase([
       { status: 401, body: failure('unauthorized') },

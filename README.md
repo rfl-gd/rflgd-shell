@@ -281,6 +281,8 @@ const allGroups = await listGroups() // for share dialogs, `removed` included; [
 ```
 
 - Same OIDC client and env vars as the settings, scope `directory:read`.
+- On a cold cache `getUserAccess` waits for the base (up to a few seconds when
+  it is slow). Call it once per request and pass the result down.
 - Cached per user for 5 minutes, then revalidated with an ETag; 3 s deadline
   per call, 10 s pause after a failure, at most 1 000 users in memory.
 - When the base cannot answer, the last good value is used for up to 60
@@ -289,11 +291,13 @@ const allGroups = await listGroups() // for share dialogs, `removed` included; [
   what needs no role and no group. A `404` from the base is
   `{ access: false, groups: [], roles: [] }`.
 - A module that declares neither roles nor `directoryAccess` gets `403` from the
-  base; the client then answers "unknown" and asks again only after 60 minutes.
+  base, and a base that refuses the `directory:read` token (any 4xx but 401,
+  e.g. `invalid_scope`) is treated the same: the client answers "unknown" and
+  asks again only after 60 minutes.
 - **Session enforcement.** The Payload strategy (`createOidcStrategy`) stops
   accepting a session once the base definitively says `access: false` (or
   `404`); the admin then falls back to `/api/oidc/signin`, which clears the
-  session cookie and redirects to `{base}/?error=no-access`. The check uses the
+  session cookie and redirects to `{base}/apps?error=no-access`. The check uses the
   cache only and refreshes in the background, so it adds no latency and a slow
   or failing base never ends a session. `RFLGD_DIRECTORY_ENFORCE=false` turns
   the enforcement off; the client API keeps working. Apps that read the

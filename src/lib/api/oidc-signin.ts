@@ -21,7 +21,7 @@ export async function GET(req: Request): Promise<NextResponse> {
   const sessionToken = sessionCookieValue(req.headers.get('cookie'))
   const session = sessionToken ? await verifySessionCookie(env.authSecret, sessionToken) : null
   if (session && isSessionAccessRevoked(session.sub)) {
-    const res = NextResponse.redirect(`${providerOrigin(env)}/?error=no-access`)
+    const res = NextResponse.redirect(`${providerOrigin(env)}/apps?error=no-access`)
     clearSessionCookie(res)
     return res
   }
