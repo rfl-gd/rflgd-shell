@@ -128,11 +128,26 @@ describe('getUserAccess', () => {
     expect(fetch).toHaveBeenCalledTimes(2)
   })
 
+  it('backs off for 60 minutes on unauthorized_client', async () => {
+    const fetch = vi.fn(async () => new Response(JSON.stringify({ error: 'unauthorized_client' }), { status: 400 }))
+    const directory = createDirectoryClient({ ...env, fetch: fetch as never })
+    await directory.getUserAccess('u1')
+    vi.advanceTimersByTime(59 * MINUTE)
+    await directory.getUserAccess('u1')
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
   it.each([
-    ['a 401', 401],
-    ['a 500', 500],
-  ])('keeps the short back-off when the token endpoint answers %s', async (_, status) => {
-    const fetch = vi.fn(async () => new Response(JSON.stringify({ error: 'x' }), { status }))
+    ['a 401', 401, 'invalid_client'],
+    ['a 408', 408, 'invalid_scope'],
+    ['a 429', 429, 'invalid_scope'],
+    ['a 400 with another code', 400, 'invalid_request'],
+    ['a 400 without a body', 400, null],
+    ['a 500', 500, 'server_error'],
+  ])('keeps the short back-off when the token endpoint answers %s', async (_, status, code) => {
+    const fetch = vi.fn(
+      async () => new Response(code ? JSON.stringify({ error: code }) : 'not json', { status: status as number }),
+    )
     const directory = createDirectoryClient({ ...env, fetch: fetch as never, retryAfterMs: 10_000 })
     await directory.getUserAccess('u1')
     vi.advanceTimersByTime(10_000)
@@ -260,6 +275,31 @@ describe('isAccessRevoked', () => {
     const directory = createDirectoryClient({ ...env, fetch: base.fetch })
     await directory.getUserAccess('u1')
     expect(directory.isAccessRevoked('u1')).toBe(false)
+  })
+
+  it('keeps enforcing a cached denial while the module does not take part', async () => {
+    vi.useFakeTimers()
+    try {
+      const base = fakeBase([
+        { status: 200, body: user({ access: false, groups: [], roles: [] }) },
+        { status: 200, body: user() },
+        { status: 403, body: failure('forbidden') },
+      ])
+      const directory = createDirectoryClient({ ...env, fetch: base.fetch })
+      await directory.getUserAccess('denied')
+      await directory.getUserAccess('allowed')
+      vi.advanceTimersByTime(5 * MINUTE)
+      await directory.getUserAccess('denied') // 403: the 60-minute window starts
+      expect(base.calls).toHaveLength(3)
+      expect(directory.isAccessRevoked('denied')).toBe(true)
+      expect((await directory.getUserAccess('denied')).access).toBe(false)
+      expect(directory.isAccessRevoked('allowed')).toBe(false)
+      expect(await directory.getUserAccess('allowed')).toEqual(UNKNOWN)
+      expect(directory.isAccessRevoked('unseen')).toBe(false)
+      expect(base.calls).toHaveLength(3)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('serves the cached verdict while a stale entry is refreshed in the background', async () => {

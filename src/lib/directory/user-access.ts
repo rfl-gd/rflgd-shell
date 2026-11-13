@@ -85,6 +85,15 @@ function isUserAccess(data: unknown): data is UserAccess {
   )
 }
 
+/** HTTP 400 with an OAuth code saying this client may never get the scope. */
+function isDefinitiveTokenRefusal(err: unknown): boolean {
+  return (
+    err instanceof TokenRequestError &&
+    err.status === 400 &&
+    (err.code === 'invalid_scope' || err.code === 'unauthorized_client')
+  )
+}
+
 function isGroupList(data: unknown): data is DirectoryGroup[] {
   return Array.isArray(data) && data.every((g) => typeof g?.id === 'number' && typeof g.name === 'string')
 }
@@ -152,12 +161,10 @@ export function createDirectoryClient(options: Options = {}): DirectoryClient {
       const value = res.ok && body?.success ? read(body.data) : null
       return value ? { kind: 'value', value, etag: res.headers.get('etag') } : null
     } catch (err) {
-      // The token endpoint refusing the request (e.g. `invalid_scope` from an
-      // older base) means this module cannot take part, like a 403 does.
-      if (err instanceof TokenRequestError && err.status >= 400 && err.status < 500 && err.status !== 401) {
-        return { kind: 'forbidden' }
-      }
-      // Unreachable or hanging base, or a rejected client: handled like any failure below.
+      // Only a definitive OAuth refusal (e.g. `invalid_scope` from an older
+      // base) means this module cannot take part, like a 403 does.
+      if (isDefinitiveTokenRefusal(err)) return { kind: 'forbidden' }
+      // Unreachable or hanging base, rate limit, rejected client: transient, short back-off below.
       return null
     }
   }
@@ -216,9 +223,11 @@ export function createDirectoryClient(options: Options = {}): DirectoryClient {
   return {
     async getUserAccess(sub) {
       if (!isFresh(users.get(sub)) && mayAsk()) await refreshUser(sub)
-      if (Date.now() < forbiddenUntil) return unknownAccess()
       const entry = users.get(sub)
-      return isUsable(entry) ? entry!.value : unknownAccess()
+      if (!isUsable(entry)) return unknownAccess()
+      // While the module does not take part, only a cached denial is still reported.
+      if (Date.now() < forbiddenUntil && entry!.value.access) return unknownAccess()
+      return entry!.value
     },
     async listGroups() {
       if (!isFresh(groups) && mayAsk()) await refreshGroups()
@@ -228,7 +237,7 @@ export function createDirectoryClient(options: Options = {}): DirectoryClient {
     isAccessRevoked(sub) {
       const entry = users.get(sub)
       if (!isFresh(entry) && mayAsk()) void refreshUser(sub)
-      if (Date.now() < forbiddenUntil) return false
+      // A cached denial is enforced even while the module does not take part.
       // A stale denial still counts (intended): it was a definitive base answer, bounded by the 60-minute window.
       return isUsable(entry) && entry!.value.access === false
     },

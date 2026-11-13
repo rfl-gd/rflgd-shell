@@ -291,9 +291,11 @@ const allGroups = await listGroups() // for share dialogs, `removed` included; [
   what needs no role and no group. A `404` from the base is
   `{ access: false, groups: [], roles: [] }`.
 - A module that declares neither roles nor `directoryAccess` gets `403` from the
-  base, and a base that refuses the `directory:read` token (any 4xx but 401,
-  e.g. `invalid_scope`) is treated the same: the client answers "unknown" and
-  asks again only after 60 minutes.
+  base, and a token endpoint that refuses the `directory:read` token for good
+  (HTTP 400 with `invalid_scope` or `unauthorized_client`) is treated the same:
+  the client answers "unknown" and asks again only after 60 minutes. Every other
+  token failure (401, 408, 429, 5xx, network) only pauses for 10 s. A denial
+  already cached for a user stays in force during that hour.
 - **Session enforcement.** The Payload strategy (`createOidcStrategy`) stops
   accepting a session once the base definitively says `access: false` (or
   `404`); the admin then falls back to `/api/oidc/signin`, which clears the
