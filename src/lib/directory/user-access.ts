@@ -20,7 +20,16 @@ export type UserAccess = {
   access: boolean
   groups: Array<{ id: number; name: string; externalId: string | null }>
   roles: string[]
+  /**
+   * True only when the values are a definitive base answer (fresh, or the last
+   * good one within 60 minutes; a 404 is a known `access: false`). False for
+   * every fallback. Never write a mirrored state from an answer with `known: false`.
+   */
+  known: boolean
 }
+
+/** Groups of the tenant plus whether the list is a definitive base answer. */
+export type GroupListResult = { known: boolean; groups: DirectoryGroup[] }
 
 export type DirectoryGroup = {
   id: number
@@ -36,6 +45,8 @@ export interface DirectoryClient {
   getUserAccess(sub: string): Promise<UserAccess>
   /** All groups of the tenant, `removed` ones included; `[]` when unknown. Never throws. */
   listGroups(): Promise<DirectoryGroup[]>
+  /** Like `listGroups`, but says whether the list is a definitive base answer. Never throws. */
+  listGroupsResult(): Promise<GroupListResult>
   /**
    * True only when the base definitively said the user lost access (a 200
    * with `access: false`, or a 404). Answers from the cache without waiting
@@ -71,18 +82,22 @@ type Outcome<T> = { kind: 'value'; value: T; etag: string | null } | { kind: 'no
 const SCOPE = 'directory:read'
 const MINUTE = 60_000
 
-const unknownAccess = (): UserAccess => ({ access: true, groups: [], roles: [] })
-const noAccess = (): UserAccess => ({ access: false, groups: [], roles: [] })
+/** What the base says about a user, as cached; `known` is added on the way out. */
+type AccessData = Omit<UserAccess, 'known'>
 
-function isUserAccess(data: unknown): data is UserAccess {
-  const d = data as UserAccess | null
-  return (
+const unknownAccess = (): UserAccess => ({ access: true, groups: [], roles: [], known: false })
+const noAccess = (): AccessData => ({ access: false, groups: [], roles: [] })
+
+/** The base's user answer reduced to the fields this client owns, or null when malformed. */
+function readAccess(data: unknown): AccessData | null {
+  const d = data as AccessData | null
+  const valid =
     typeof d?.access === 'boolean' &&
     Array.isArray(d.roles) &&
     d.roles.every((r) => typeof r === 'string') &&
     Array.isArray(d.groups) &&
     d.groups.every((g) => typeof g?.id === 'number' && typeof g.name === 'string')
-  )
+  return valid ? { access: d.access, groups: d.groups, roles: d.roles } : null
 }
 
 /** HTTP 400 with an OAuth code saying this client may never get the scope. */
@@ -112,7 +127,7 @@ export function createDirectoryClient(options: Options = {}): DirectoryClient {
     doFetch(input, { ...init, signal: AbortSignal.timeout(requestTimeoutMs) })
   const credentials = config ? createClientCredentials(config, SCOPE, timedFetch) : null
 
-  const users = new Map<string, Entry<UserAccess>>()
+  const users = new Map<string, Entry<AccessData>>()
   const userLoads = new Map<string, Promise<void>>()
   let groups: Entry<DirectoryGroup[]> | null = null
   let groupsLoad: Promise<void> | null = null
@@ -188,7 +203,7 @@ export function createDirectoryClient(options: Options = {}): DirectoryClient {
       const outcome = await fetchOutcome(
         `/api/modules/directory/users/${encodeURIComponent(sub)}`,
         users.get(sub)?.etag ?? null,
-        (data) => (isUserAccess(data) ? data : null),
+        readAccess,
         noAccess,
       )
       const next = settle(users.get(sub), outcome)
@@ -220,6 +235,12 @@ export function createDirectoryClient(options: Options = {}): DirectoryClient {
     return groupsLoad
   }
 
+  async function listGroupsResult(): Promise<GroupListResult> {
+    if (!isFresh(groups) && mayAsk()) await refreshGroups()
+    if (Date.now() < forbiddenUntil || !isUsable(groups)) return { known: false, groups: [] }
+    return { known: true, groups: groups!.value }
+  }
+
   return {
     async getUserAccess(sub) {
       if (!isFresh(users.get(sub)) && mayAsk()) await refreshUser(sub)
@@ -227,13 +248,12 @@ export function createDirectoryClient(options: Options = {}): DirectoryClient {
       if (!isUsable(entry)) return unknownAccess()
       // While the module does not take part, only a cached denial is still reported.
       if (Date.now() < forbiddenUntil && entry!.value.access) return unknownAccess()
-      return entry!.value
+      return { ...entry!.value, known: true }
     },
     async listGroups() {
-      if (!isFresh(groups) && mayAsk()) await refreshGroups()
-      if (Date.now() < forbiddenUntil) return []
-      return isUsable(groups) ? groups!.value : []
+      return (await listGroupsResult()).groups
     },
+    listGroupsResult,
     isAccessRevoked(sub) {
       const entry = users.get(sub)
       if (!isFresh(entry) && mayAsk()) void refreshUser(sub)
@@ -261,6 +281,10 @@ export function getUserAccess(sub: string): Promise<UserAccess> {
 
 export function listGroups(): Promise<DirectoryGroup[]> {
   return defaultClient().listGroups()
+}
+
+export function listGroupsResult(): Promise<GroupListResult> {
+  return defaultClient().listGroupsResult()
 }
 
 /**

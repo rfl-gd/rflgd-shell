@@ -271,14 +271,28 @@ assigns the roles a module declares in its manifest (`roles`, or
 per request, server-side:
 
 ```ts
-import { getUserAccess, hasRole, inGroup, listGroups } from '@reflagged/shell/directory'
+import { getUserAccess, hasRole, inGroup, listGroups, listGroupsResult } from '@reflagged/shell/directory'
 
-const me = await getUserAccess(session.sub) // { access, groups, roles }, never throws
+const me = await getUserAccess(session.sub) // { access, groups, roles, known }, never throws
 if (!hasRole(me, 'editor')) return forbidden()
 const mayRead = inGroup(me, area.groupId) // store grants against the group id, never the name
 
 const allGroups = await listGroups() // for share dialogs, `removed` included; [] when unknown
+
+// Mirroring into your own tables: write only definitive answers.
+const { known, groups } = await listGroupsResult()
+if (known) await syncGroups(groups)
+if (me.known) await syncMemberships(session.sub, me.groups)
 ```
+
+- **`known`** is `true` only when the values are a definitive base answer: fresh,
+  or the last good one within its 60-minute window (a `404` is a known
+  `access: false`). Every fallback has `known: false` — base unreachable with
+  nothing usable cached, back-off without a cached answer, module does not take
+  part (`403`), token refused, no OIDC client configured. **Never write a
+  mirrored state from an answer with `known: false`**: an unknown answer has
+  empty `groups` and `roles`, and writing it would empty a person's groups on
+  every outage. `listGroupsResult()` gives the same flag for the group list.
 
 - Same OIDC client and env vars as the settings, scope `directory:read`.
 - On a cold cache `getUserAccess` waits for the base (up to a few seconds when
@@ -287,9 +301,9 @@ const allGroups = await listGroups() // for share dialogs, `removed` included; [
   per call, 10 s pause after a failure, at most 1 000 users in memory.
 - When the base cannot answer, the last good value is used for up to 60
   minutes after it was fetched; after that, or when there never was one, the
-  result is `{ access: true, groups: [], roles: [] }` ("unknown") — allow only
-  what needs no role and no group. A `404` from the base is
-  `{ access: false, groups: [], roles: [] }`.
+  result is `{ access: true, groups: [], roles: [], known: false }` ("unknown")
+  — allow only what needs no role and no group. A `404` from the base is
+  `{ access: false, groups: [], roles: [], known: true }`.
 - A module that declares neither roles nor `directoryAccess` gets `403` from the
   base, and a token endpoint that refuses the `directory:read` token for good
   (HTTP 400 with `invalid_scope` or `unauthorized_client`) is treated the same:

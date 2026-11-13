@@ -6,7 +6,9 @@ const env = { issuer: 'https://base.test/oidc', clientId: 'crm', clientSecret: '
 
 type Reply = { status: number; body?: unknown; etag?: string } | Error
 
-const UNKNOWN: UserAccess = { access: true, groups: [], roles: [] }
+const UNKNOWN: UserAccess = { access: true, groups: [], roles: [], known: false }
+/** A base answer as the client returns it. */
+const known = (data: Omit<UserAccess, 'known'>): UserAccess => ({ ...data, known: true })
 const MINUTE = 60_000
 
 /** A fake base: answers the token endpoint itself, directory requests from `replies` in order. */
@@ -27,7 +29,7 @@ function fakeBase(replies: Reply[]) {
   return { fetch: fetch as unknown as typeof globalThis.fetch, calls }
 }
 
-const user = (data: Partial<UserAccess> = {}) => ({
+const user = (data: Partial<Omit<UserAccess, 'known'>> = {}) => ({
   success: true,
   data: { access: true, groups: [{ id: 12, name: 'Vertrieb', externalId: 'ext-12' }], roles: ['editor'], ...data },
 })
@@ -44,7 +46,7 @@ describe('getUserAccess', () => {
   it('returns access, groups and roles from the base for the given sub', async () => {
     const base = fakeBase([{ status: 200, body: user() }])
     const directory = createDirectoryClient({ ...env, fetch: base.fetch })
-    expect(await directory.getUserAccess('u/1')).toEqual(user().data)
+    expect(await directory.getUserAccess('u/1')).toEqual(known(user().data))
     expect(base.calls[0]?.url).toBe('https://base.test/api/modules/directory/users/u%2F1')
     expect(base.calls[0]?.headers.authorization).toBe('Bearer tok')
   })
@@ -54,7 +56,7 @@ describe('getUserAccess', () => {
     const directory = createDirectoryClient({ ...env, fetch: base.fetch })
     await directory.getUserAccess('u1')
     vi.advanceTimersByTime(5 * MINUTE - 1)
-    expect(await directory.getUserAccess('u1')).toEqual(user().data)
+    expect(await directory.getUserAccess('u1')).toEqual(known(user().data))
     expect(base.calls).toHaveLength(1)
   })
 
@@ -63,7 +65,7 @@ describe('getUserAccess', () => {
     const directory = createDirectoryClient({ ...env, fetch: base.fetch })
     await directory.getUserAccess('u1')
     vi.advanceTimersByTime(5 * MINUTE)
-    expect(await directory.getUserAccess('u1')).toEqual(user().data)
+    expect(await directory.getUserAccess('u1')).toEqual(known(user().data))
     expect(base.calls[1]?.headers['if-none-match']).toBe('W/"1"')
   })
 
@@ -72,7 +74,7 @@ describe('getUserAccess', () => {
     const directory = createDirectoryClient({ ...env, fetch: base.fetch })
     await directory.getUserAccess('u1')
     vi.advanceTimersByTime(59 * MINUTE)
-    expect(await directory.getUserAccess('u1')).toEqual(user().data)
+    expect(await directory.getUserAccess('u1')).toEqual(known(user().data))
     vi.advanceTimersByTime(MINUTE)
     expect(await directory.getUserAccess('u1')).toEqual(UNKNOWN)
   })
@@ -84,7 +86,7 @@ describe('getUserAccess', () => {
     vi.advanceTimersByTime(50 * MINUTE)
     await directory.getUserAccess('u1')
     vi.advanceTimersByTime(50 * MINUTE)
-    expect(await directory.getUserAccess('u1')).toEqual(user().data)
+    expect(await directory.getUserAccess('u1')).toEqual(known(user().data))
   })
 
   it('returns the unknown fallback when the base never answered', async () => {
@@ -96,7 +98,7 @@ describe('getUserAccess', () => {
   it('maps a 404 not-found to no access', async () => {
     const base = fakeBase([{ status: 404, body: failure('not-found') }])
     const directory = createDirectoryClient({ ...env, fetch: base.fetch })
-    expect(await directory.getUserAccess('u1')).toEqual({ access: false, groups: [], roles: [] })
+    expect(await directory.getUserAccess('u1')).toEqual({ access: false, groups: [], roles: [], known: true })
   })
 
   it('never throws on malformed JSON or a malformed body', async () => {
@@ -186,7 +188,7 @@ describe('getUserAccess', () => {
     expect(await directory.getUserAccess('u3')).toEqual(UNKNOWN)
     expect(base.calls).toHaveLength(1)
     vi.advanceTimersByTime(MINUTE)
-    expect(await directory.getUserAccess('u3')).toEqual(user().data)
+    expect(await directory.getUserAccess('u3')).toEqual(known(user().data))
   })
 
   it('waits before asking again after a failed load', async () => {
@@ -196,7 +198,7 @@ describe('getUserAccess', () => {
     await directory.getUserAccess('u2')
     expect(base.calls).toHaveLength(1)
     vi.advanceTimersByTime(10_000)
-    expect(await directory.getUserAccess('u2')).toEqual(user().data)
+    expect(await directory.getUserAccess('u2')).toEqual(known(user().data))
   })
 
   it('sends one request for concurrent reads of the same user', async () => {
@@ -245,6 +247,87 @@ describe('getUserAccess', () => {
     )
     const directory = createDirectoryClient({ ...env, fetch: fetch as never, requestTimeoutMs: 20 })
     expect(await directory.getUserAccess('u1')).toEqual(UNKNOWN)
+  })
+})
+
+describe('known', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const groups = [{ id: 12, name: 'Vertrieb', source: 'entra', state: 'active', externalId: 'ext', memberCount: 14 }]
+
+  it('is true for a 200 answer, also one without any group', async () => {
+    const base = fakeBase([{ status: 200, body: user({ groups: [], roles: [] }) }])
+    const directory = createDirectoryClient({ ...env, fetch: base.fetch })
+    expect(await directory.getUserAccess('u1')).toEqual({ access: true, groups: [], roles: [], known: true })
+  })
+
+  it('is true for a 404 not-found, which is a known denial', async () => {
+    const base = fakeBase([{ status: 404, body: failure('not-found') }])
+    const directory = createDirectoryClient({ ...env, fetch: base.fetch })
+    expect((await directory.getUserAccess('u1')).known).toBe(true)
+  })
+
+  it.each([
+    ['a network error without a cached answer', [new Error('ECONNREFUSED')] as Reply[]],
+    ['a 403 forbidden', [{ status: 403, body: failure('forbidden') }] as Reply[]],
+  ])('is false after %s', async (_, replies) => {
+    const base = fakeBase(replies)
+    const directory = createDirectoryClient({ ...env, fetch: base.fetch })
+    expect((await directory.getUserAccess('u1')).known).toBe(false)
+  })
+
+  it('is false when the token endpoint refuses the scope', async () => {
+    const fetch = vi.fn(async () => new Response(JSON.stringify({ error: 'invalid_scope' }), { status: 400 }))
+    const directory = createDirectoryClient({ ...env, fetch: fetch as never })
+    expect((await directory.getUserAccess('u1')).known).toBe(false)
+  })
+
+  it('is false without OIDC client settings', async () => {
+    const directory = createDirectoryClient({ issuer: '', clientId: '', clientSecret: '', fetch: vi.fn() })
+    expect((await directory.getUserAccess('u1')).known).toBe(false)
+    expect(await directory.listGroupsResult()).toEqual({ known: false, groups: [] })
+  })
+
+  it('is false during a back-off without a cached answer', async () => {
+    const base = fakeBase([{ status: 500 }])
+    const directory = createDirectoryClient({ ...env, fetch: base.fetch })
+    await directory.getUserAccess('u1')
+    expect((await directory.getUserAccess('u2')).known).toBe(false)
+  })
+
+  it('stays true for the last good answer within 60 minutes, then turns false', async () => {
+    const base = fakeBase([{ status: 200, body: user() }])
+    const directory = createDirectoryClient({ ...env, fetch: base.fetch })
+    await directory.getUserAccess('u1')
+    vi.advanceTimersByTime(59 * MINUTE)
+    expect(await directory.getUserAccess('u1')).toEqual(known(user().data))
+    vi.advanceTimersByTime(MINUTE)
+    expect(await directory.getUserAccess('u1')).toEqual(UNKNOWN)
+  })
+
+  it('listGroupsResult tells a known group list from an unknown one', async () => {
+    const base = fakeBase([{ status: 200, body: { success: true, data: { groups } } }])
+    const directory = createDirectoryClient({ ...env, fetch: base.fetch })
+    expect(await directory.listGroupsResult()).toEqual({ known: true, groups })
+    vi.advanceTimersByTime(60 * MINUTE)
+    expect(await directory.listGroupsResult()).toEqual({ known: false, groups: [] })
+  })
+
+  it('listGroupsResult reports an empty list from the base as known', async () => {
+    const base = fakeBase([{ status: 200, body: { success: true, data: { groups: [] } } }])
+    const directory = createDirectoryClient({ ...env, fetch: base.fetch })
+    expect(await directory.listGroupsResult()).toEqual({ known: true, groups: [] })
+  })
+
+  it('listGroupsResult is unknown when the module does not take part', async () => {
+    const base = fakeBase([{ status: 403, body: failure('forbidden') }])
+    const directory = createDirectoryClient({ ...env, fetch: base.fetch })
+    expect(await directory.listGroupsResult()).toEqual({ known: false, groups: [] })
   })
 })
 
@@ -350,7 +433,7 @@ describe('listGroups', () => {
 })
 
 describe('hasRole / inGroup', () => {
-  const access: UserAccess = user().data
+  const access: UserAccess = known(user().data)
 
   it('checks for a role', () => {
     expect(hasRole(access, 'editor')).toBe(true)
@@ -363,7 +446,9 @@ describe('hasRole / inGroup', () => {
   })
 
   it('grants nothing without access', () => {
-    expect(hasRole({ access: false, groups: [], roles: ['editor'] }, 'editor')).toBe(false)
-    expect(inGroup({ access: false, groups: [{ id: 12, name: 'x', externalId: null }], roles: [] }, 12)).toBe(false)
+    expect(hasRole({ access: false, groups: [], roles: ['editor'], known: true }, 'editor')).toBe(false)
+    expect(
+      inGroup({ access: false, groups: [{ id: 12, name: 'x', externalId: null }], roles: [], known: true }, 12),
+    ).toBe(false)
   })
 })
