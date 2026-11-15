@@ -1,10 +1,26 @@
 import { renderToString } from 'react-dom/server'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BrandSwitcher } from './BrandSwitcher'
 import { ShellProvider, resolveShellConfig } from './shell-config'
 
 describe('shell config', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
   it('falls back to the env reader without a provider', () => {
+    vi.stubEnv('NEXT_PUBLIC_RFLGD_APP_KEY', 'from-env')
+    vi.stubEnv('NEXT_PUBLIC_RFLGD_APP_LABEL', 'From Env')
+    expect(resolveShellConfig(null)).toEqual({
+      appKey: 'from-env',
+      appLabel: 'From Env',
+      shellInfoUrl: '/api/shell-info',
+    })
+  })
+
+  it('defaults everything without a provider or env', () => {
+    vi.stubEnv('NEXT_PUBLIC_RFLGD_APP_KEY', undefined)
+    vi.stubEnv('NEXT_PUBLIC_RFLGD_APP_LABEL', undefined)
     expect(resolveShellConfig(null)).toEqual({
       appKey: 'unknown',
       appLabel: 'Reflagged App',
