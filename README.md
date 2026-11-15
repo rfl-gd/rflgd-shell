@@ -84,7 +84,7 @@ export const oidcStrategy = createOidcStrategy({ roleForNewUser })
 
 This callback runs only when an account is created, never on later
 sign-ins — see `NewUserContext`'s doc comments in
-`src/lib/auth/nextauth-strategy.ts` for the full contract, including the
+`src/payload/strategy.ts` for the full contract, including the
 `isFirstUser` branch and the `null` case for standalone operation.
 
 ### Per-app route files + middleware
@@ -365,9 +365,10 @@ vitest suite.
 
 ## Releasing
 
-Bump `version` in `package.json`, commit, tag `vX.Y.Z` and push the tag.
-`publish.yml` puts it on npm; `fan-out.yml` then opens a bump PR in every
-`rfl-gd` repo whose root `package.json` depends on this package and merges it
+Bump `version` in `package.json`, commit, then `git tag vX.Y.Z && git push --tags`.
+`publish.yml` builds `dist/`, typechecks, checks the tag matches `version` and
+puts it on npm (needs the `NPM_TOKEN` repo secret); `fan-out.yml` then opens a
+bump PR in every `rfl-gd` repo whose root `package.json` depends on this package and merges it
 unless the bump breaks a CI job that passes on the repo's default branch (a
 main that is red already does not block it; no CI at all merges, too). Re-run
 a rollout via *Actions → Roll out @reflagged/shell → Run workflow*; it resumes
@@ -435,17 +436,7 @@ the consumer (all Reflagged repos sit side-by-side under `~/Development/`):
 }
 ```
 
-Then `pnpm install`. Edits in `rflgd-shell/src` are picked up live (still
-transpiled via `transpilePackages`). **Remove the override before committing** —
-`link:../rflgd-shell` does not exist in the Coolify build context and would
+Then `pnpm install`. The consumer resolves `exports` to `dist/`, so run
+`pnpm exec tsup --watch` in the shell checkout while live-editing. **Remove the
+override before committing** — `link:../rflgd-shell` does not exist in the Coolify build context and would
 break the build.
-
-## Releasing
-
-Raw source, no build. To publish a new version:
-
-1. Bump `version` in `package.json`.
-2. Commit, then `git tag vX.Y.Z && git push --tags`.
-3. The `.github/workflows/publish.yml` workflow typechecks, verifies the tag
-   matches `version`, and runs `npm publish --access public` (needs the
-   `NPM_TOKEN` repo secret).
