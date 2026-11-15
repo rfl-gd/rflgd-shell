@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Verify that every local consumer installs, typechecks and builds against the packed shell.
+# Verify that every local consumer installs, typechecks, builds and tests against the packed shell.
 #
 # Consumer checkouts are never modified: each one is copied into $WORK_DIR and the
 # packed tarball is installed into the copy. A step that fails with the tarball is
@@ -11,12 +11,15 @@
 #        The consumer copies are removed when the run ends (logs and results stay); --keep
 #        keeps them for inspection. --clean is accepted for compatibility and is the default.
 # Env:   DEV_ROOT (default ~/Development), WORK_DIR (default $TMPDIR/shell-consumers),
-#        TARBALL (skip build+pack and use this tarball),
+#        TARBALL (skip build+pack and use this tarball), TEST_TIMEOUT (seconds, default 900),
 #        GITHUB_TOKEN (for consumers whose lockfile pulls private packages from GitHub
 #        Packages; USE_GH_TOKEN=1 takes it from `gh auth token` instead). It reaches pnpm
 #        only through a temporary user config, and as GITHUB_TOKEN only for the install
 #        commands of consumers whose .npmrc expands it. Without a token those consumers
 #        are recorded as skipped.
+# Steps: install; typecheck (tsc --noEmit, when there is a tsconfig.json); build (pnpm run build,
+#        when there is a .env, or a .env.example copied to .env in the copy only, marked
+#        "example env"); test (vitest run, when vitest is in the app's devDependencies).
 # Output: a table of every consumer with a result in $WORK_DIR/results (re-running a subset
 #        keeps the other rows); logs per consumer and step in $WORK_DIR/logs.
 # Exit:  1 when a step of this run fails with the tarball but passes with the current shell.
@@ -103,17 +106,33 @@ fresh_copy() { # <src root> <dest> <app subdir or empty>
   rsync -a --safe-links --exclude .git --exclude node_modules "${excludes[@]}" "$src/" "$dest/"
 }
 
-# Runs one verification step; prints pass, fail or skipped.
+has_dev_dependency() { # <app dir> <name>
+  node -e 'const p=require(process.argv[1]);process.exit(p.devDependencies?.[process.argv[2]]?0:1)' \
+    "$1/package.json" "$2"
+}
+
+# Runs one verification step in a copy; prints pass, fail or skipped (with a note when the
+# build ran with the example env).
 run_step() { # <step> <pnpm spec> <app dir> <log>
-  local step="$1" spec="$2" app="$3" log="$4"
+  local step="$1" spec="$2" app="$3" log="$4" note=""
   case "$step" in
     typecheck)
       [[ -f "$app/tsconfig.json" ]] || { echo skipped; return; }
       run_pnpm "$spec" "$app" "$log" exec tsc --noEmit && echo pass || echo fail
       ;;
     build)
-      [[ -f "$app/.env" ]] || { echo skipped; return; }
-      run_pnpm "$spec" "$app" "$log" run build && echo pass || echo fail
+      if [[ ! -f "$app/.env" ]]; then
+        [[ -f "$app/.env.example" ]] || { echo skipped; return; }
+        cp "$app/.env.example" "$app/.env" || { echo fail; return; }
+        note=" (example env)"
+      fi
+      run_pnpm "$spec" "$app" "$log" run build && echo "pass$note" || echo "fail$note"
+      ;;
+    test)
+      has_dev_dependency "$app" vitest || { echo skipped; return; }
+      # A test that waits for a service nobody started would hang the run; give up after TEST_TIMEOUT.
+      (cd "$app" && CI=1 perl -e 'alarm shift; exec @ARGV' "${TEST_TIMEOUT:-900}" npx --yes "$spec" exec vitest run) \
+        >>"$log" 2>&1 && echo pass || echo fail
       ;;
   esac
 }
@@ -122,7 +141,7 @@ run_step() { # <step> <pnpm spec> <app dir> <log>
 # every command that can fail checks its own status.
 run_consumer() { # <entry> <result file>
   local entry="$1" result_file="$2" root sub="" label key src spec copy app base base_app
-  local install typecheck build baseline="" step result
+  local install typecheck build test baseline="" step result
   root="${entry%%:*}"
   if [[ "$entry" == *:* ]]; then sub="${entry#*:}"; fi
   label="${root}${sub:+/$sub}"
@@ -130,15 +149,16 @@ run_consumer() { # <entry> <result file>
   src="$DEV_ROOT/$root"
 
   if [[ ! -f "$src/${sub:+$sub/}package.json" ]]; then
-    printf '%s\tmissing\tmissing\tmissing\t\n' "$label" >"$result_file"
+    printf '%s\tmissing\tmissing\tmissing\tmissing\t\n' "$label" >"$result_file"
     return 0
   fi
   if ! grep -q '"@reflagged/shell"' "$src/${sub:+$sub/}package.json"; then
-    printf '%s\tn/a\tn/a\tn/a\t\n' "$label" >"$result_file"
+    printf '%s\tn/a\tn/a\tn/a\tn/a\t\n' "$label" >"$result_file"
     return 0
   fi
   if [[ -z "$token" ]] && grep -qs "$PRIVATE_REGISTRY" "$src/pnpm-lock.yaml"; then
-    printf '%s\tskipped (no token)\tskipped (no token)\tskipped (no token)\t\n' "$label" >"$result_file"
+    printf '%s\tskipped (no token)\tskipped (no token)\tskipped (no token)\tskipped (no token)\t\n' \
+      "$label" >"$result_file"
     return 0
   fi
 
@@ -146,7 +166,7 @@ run_consumer() { # <entry> <result file>
   copy="$WORK_DIR/v2/$key"
   app="$copy${sub:+/$sub}"
   fresh_copy "$src" "$copy" "$sub" || return 1
-  for step in install typecheck build; do : >"$LOG_DIR/$key-$step.log"; done
+  for step in install typecheck build test; do : >"$LOG_DIR/$key-$step.log"; done
 
   # `add` links only the project it runs in, so workspaces are re-installed from the
   # root to link their other packages.
@@ -157,13 +177,15 @@ run_consumer() { # <entry> <result file>
     install=pass
     typecheck="$(run_step typecheck "$spec" "$app" "$LOG_DIR/$key-typecheck.log")"
     build="$(run_step build "$spec" "$app" "$LOG_DIR/$key-build.log")"
+    test="$(run_step test "$spec" "$app" "$LOG_DIR/$key-test.log")"
   else
     install=fail
     typecheck="not run"
     build="not run"
+    test="not run"
   fi
 
-  if [[ "$install" == fail || "$typecheck" == fail || "$build" == fail ]]; then
+  if [[ "$install" == fail || "$typecheck" == fail* || "$build" == fail* || "$test" == fail* ]]; then
     base="$WORK_DIR/baseline/$key"
     base_app="$base${sub:+/$sub}"
     fresh_copy "$src" "$base" "$sub" || return 1
@@ -173,20 +195,20 @@ run_consumer() { # <entry> <result file>
       if [[ "$install" == fail ]]; then
         baseline="install pass (REGRESSION)"
       fi
-      for step in typecheck build; do
-        [[ "${!step}" == fail ]] || continue
+      for step in typecheck build test; do
+        [[ "${!step}" == fail* ]] || continue
         : >"$LOG_DIR/$key-baseline-$step.log"
         result="$(run_step "$step" "$spec" "$base_app" "$LOG_DIR/$key-baseline-$step.log")"
         baseline+="${baseline:+, }$step $result"
-        if [[ "$result" == pass ]]; then baseline+=" (REGRESSION)"; fi
+        if [[ "$result" == pass* ]]; then baseline+=" (REGRESSION)"; fi
       done
     else
       baseline="install fail"
     fi
   fi
 
-  printf '%s\t%s\t%s\t%s\t%s\n' "$label" "$install" "$typecheck" "$build" "$baseline" >"$result_file"
-  echo "    install=$install typecheck=$typecheck build=$build${baseline:+ baseline: $baseline}"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$label" "$install" "$typecheck" "$build" "$test" "$baseline" >"$result_file"
+  echo "    install=$install typecheck=$typecheck build=$build test=$test${baseline:+ baseline: $baseline}"
 }
 
 if [[ -z "${TARBALL:-}" ]]; then
@@ -217,16 +239,16 @@ for entry in "${consumers[@]}"; do
   echo "==> $label"
   setup_log="$LOG_DIR/${label//\//_}-setup.log"
   if ! run_consumer "$entry" "$result_file" 2>"$setup_log"; then
-    printf '%s\terror\terror\terror\tsetup failed, see %s\n' "$label" "${setup_log##*/}" >"$result_file"
+    printf '%s\terror\terror\terror\terror\tsetup failed, see %s\n' "$label" "${setup_log##*/}" >"$result_file"
     echo "    error, see $setup_log"
   fi
 done
 
 echo
-echo "| consumer | install 2.0 | typecheck 2.0 | build 2.0 | baseline (only for failures) |"
-echo "|---|---|---|---|---|"
-while IFS=$'\t' read -r label install typecheck build baseline; do
-  echo "| $label | $install | $typecheck | $build | ${baseline:--} |"
+echo "| consumer | install 2.0 | typecheck 2.0 | build 2.0 | test 2.0 | baseline (only for failures) |"
+echo "|---|---|---|---|---|---|"
+while IFS=$'\t' read -r label install typecheck build test baseline; do
+  echo "| $label | $install | $typecheck | $build | $test | ${baseline:--} |"
 done < <(cat "$RESULT_DIR"/*.tsv)
 echo
 echo "logs: $LOG_DIR"
