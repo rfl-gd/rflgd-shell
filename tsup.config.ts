@@ -33,7 +33,7 @@ export default defineConfig([
       core: 'src/core/index.ts',
       next: 'src/next/index.ts',
       payload: 'src/payload/index.ts',
-      testing: 'src/core/session-store-conformance.ts',
+      testing: 'src/testing/index.ts',
       ...Object.fromEntries(legacyPaths.map((path) => [path, `src/entries/${path}.ts`])),
     },
     format: ['esm'],

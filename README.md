@@ -8,6 +8,9 @@ Shared app shell for Reflagged services. Provides:
 - `BrandSwitcher` component (app palette: icons, search, ⌘K / Ctrl+K)
 - Admin route SSO enforcement middleware
 
+Every host app fulfils the [reFlagged Shell Contract](docs/contract.md): the
+fixed routes, the `.dark` convention and the theme tokens the components rely on.
+
 Published as a **public npm package of compiled ESM** (`dist/`, with type
 declarations). Next.js is optional: `./core` and `./react` run in any React app
 or Web-standard server.
@@ -35,6 +38,17 @@ Configure the app's identity:
 - **Other React apps:** wrap the components in `ShellProvider` (see
   [Outside Next.js](#outside-nextjs-vite-hono-remix)). Without a provider the
   components fall back to the env vars above.
+
+## Changes in 2.1
+
+- **Dark mode.** `BrandSwitcher` (trigger, palette, plates) and the
+  `NotificationBell` badge follow a `.dark` class on an ancestor, with the dark
+  values of the platform's own palette. Light rendering is unchanged; apps add
+  no CSS.
+- **[reFlagged Shell Contract](docs/contract.md).** The routes, dark-mode
+  convention and theme tokens every host app provides, in one place.
+- **`describeShellContract`** in `./testing` checks an app's routes against the
+  contract in its vitest suite.
 
 ## Changes in 2.0
 
@@ -68,7 +82,7 @@ Configure the app's identity:
 | `@reflagged/shell/react` | Components (`BrandSwitcher`, `TenantTheme`, `ServiceIcon`, `NotificationBell`, `ImpersonationCapsule`) and `ShellProvider` |
 | `@reflagged/shell/next` | Next middleware and route handlers wrapping the core |
 | `@reflagged/shell/payload` | Payload auth strategy (`createOidcStrategy`, `nextauthStrategy`) |
-| `@reflagged/shell/testing` | Test-only: `sessionStoreConformance` (imports `vitest`) |
+| `@reflagged/shell/testing` | Test-only: `sessionStoreConformance`, `describeShellContract` (imports `vitest`) |
 
 The pre-2.0 paths keep working unchanged:
 
@@ -385,7 +399,8 @@ app.get('/api/shell-info', (c) => shellInfo(c.req.raw, { platformUrl: 'https://p
 ```
 
 `sessionStoreConformance` from `@reflagged/shell/testing` checks a store in your
-vitest suite.
+vitest suite, `describeShellContract` the app's routes (see
+[the contract](docs/contract.md#checking-an-app)).
 
 ## Releasing
 

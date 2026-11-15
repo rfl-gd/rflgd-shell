@@ -6,6 +6,7 @@ import { baseSearchUrl, isPaletteShortcut, matchApps, type PaletteApp } from '..
 import { ImpersonationCapsule, type ImpersonationInfo } from './ImpersonationCapsule'
 import { ServiceIcon } from './ServiceIcon'
 import { useShellConfig } from './shell-config'
+import { ShellThemeStyle, shellColor } from './shell-theme'
 import { faviconHref, useTenantFavicon, useTenantTheme } from './TenantTheme'
 
 type Booking = {
@@ -50,12 +51,11 @@ type ShellInfo = {
 
 /**
  * Colours follow the tenant palette when the platform's theme.css is loaded
- * (`--rflgd-brand-primary`, `--brass-700`), and fall back to Reflagged brass.
+ * (`--rflgd-brand-primary`, `--brass-*`), fall back to Reflagged brass, and
+ * switch to their dark values under a `.dark` ancestor (see shell-theme).
  */
 const BRAND = 'var(--rflgd-brand-primary, #B09A6A)'
-const BRAND_TEXT = 'rgb(var(--brass-700, 125 85 26))'
-const tint = (percent: number) =>
-  `color-mix(in srgb, var(--rflgd-brand-primary, #B09A6A) ${percent}%, transparent)`
+const BRAND_TEXT = shellColor('brand-text')
 
 const StackIcon = ({ size = 22 }: { size?: number }) => (
   <svg
@@ -93,16 +93,17 @@ function BrandMark({ org, size }: { org: Org | null | undefined; size: number })
   )
 }
 
-const INK = '#2C1E14'
-const MUTED = '#7A6A58'
+const INK = shellColor('ink')
+const MUTED = shellColor('muted')
+const HAIRLINE = shellColor('hairline')
+const LINE = shellColor('line')
 const MONO = "'JetBrains Mono', monospace"
 const PLATE: React.CSSProperties = {
   display: 'grid',
   placeItems: 'center',
-  color: BRAND_TEXT,
-  background: 'linear-gradient(180deg, #fffdf6 0%, #f7edd6 52%, #f0e2c2 100%)',
-  boxShadow:
-    'inset 0 1px 0 rgba(255,255,255,0.95), 0 0 0 1px rgba(125,85,26,0.13), 0 5px 12px -5px rgba(58,40,12,0.32)',
+  color: shellColor('plate-ink'),
+  background: shellColor('plate'),
+  boxShadow: shellColor('plate-shadow'),
   flexShrink: 0,
 }
 const LABEL: React.CSSProperties = {
@@ -116,7 +117,7 @@ const KBD: React.CSSProperties = {
   fontFamily: MONO,
   fontSize: 10,
   color: MUTED,
-  border: '1px solid rgba(44,30,20,0.14)',
+  border: `1px solid ${HAIRLINE}`,
   borderRadius: 4,
   padding: '0 5px',
   whiteSpace: 'nowrap',
@@ -155,6 +156,8 @@ export function BrandSwitcher() {
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  // The open palette is portalled to <body>, out of a `.dark` that sits below it.
+  const [dark, setDark] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [shortcut, setShortcut] = useState('Strg K')
   const triggerRef = useRef<HTMLDivElement>(null)
@@ -192,6 +195,7 @@ export function BrandSwitcher() {
 
   const place = () => {
     const r = triggerRef.current?.getBoundingClientRect()
+    setDark(Boolean(triggerRef.current?.closest('.dark')))
     if (r) setPos({ top: r.bottom + 4, left: Math.max(8, Math.min(r.left, window.innerWidth - 648)) })
   }
 
@@ -369,14 +373,14 @@ export function BrandSwitcher() {
         borderRadius: 12,
         textDecoration: 'none',
         textAlign: 'center',
-        color: INK,
-        background: app.current ? tint(15) : 'transparent',
+        color: shellColor('ink-tile'),
+        background: app.current ? shellColor('current') : 'transparent',
       }}
     >
       {app.current ? (
         <span style={{ ...LABEL, position: 'absolute', top: 8, right: 8, fontSize: 9, color: BRAND_TEXT }}>Hier</span>
       ) : null}
-      <span aria-hidden style={{ ...PLATE, width: 48, height: 48, borderRadius: 14 }}>
+      <span aria-hidden data-rflgd-plate="" style={{ ...PLATE, width: 48, height: 48, borderRadius: 14 }}>
         <AppGlyph app={app} size={22} />
       </span>
       <span style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.2 }}>{app.label}</span>
@@ -414,7 +418,7 @@ export function BrandSwitcher() {
         borderRadius: 10,
         textDecoration: 'none',
         color: INK,
-        background: index === active ? 'rgba(44,30,20,0.05)' : 'transparent',
+        background: index === active ? shellColor('hover') : 'transparent',
       }}
     >
       {icon}
@@ -443,6 +447,7 @@ export function BrandSwitcher() {
       aria-label="Apps und Workspaces"
       data-brand-switcher
       data-testid="brand-switcher-panel"
+      className={dark ? 'dark' : undefined}
       style={{
         position: pos ? 'fixed' : 'absolute',
         left: pos ? pos.left : 0,
@@ -451,10 +456,10 @@ export function BrandSwitcher() {
         marginTop: pos ? 0 : 8,
         width: 'min(640px, calc(100vw - 16px))',
         borderRadius: 16,
-        border: `1px solid ${tint(16)}`,
-        background: '#FFFFFF',
+        border: `1px solid ${shellColor('frame')}`,
+        background: shellColor('surface'),
         overflow: 'hidden',
-        boxShadow: `0 1px 0 ${tint(8)}, 0 24px 48px -20px rgba(58,40,12,0.35)`,
+        boxShadow: shellColor('panel-shadow'),
         fontFamily: "'Inter', system-ui, sans-serif",
         color: INK,
       }}
@@ -465,10 +470,10 @@ export function BrandSwitcher() {
           alignItems: 'center',
           gap: 10,
           padding: '12px 16px',
-          borderBottom: `1px solid ${tint(12)}`,
+          borderBottom: `1px solid ${LINE}`,
         }}
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={MUTED} strokeWidth="2" strokeLinecap="round" aria-hidden>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" aria-hidden style={{ stroke: MUTED }}>
           <circle cx="11" cy="11" r="8" />
           <path d="m21 21-4.3-4.3" />
         </svg>
@@ -507,7 +512,7 @@ export function BrandSwitcher() {
                 app.key,
                 i,
                 app.href,
-                <span aria-hidden style={{ ...PLATE, width: 36, height: 36, borderRadius: 10 }}>
+                <span aria-hidden data-rflgd-plate="" style={{ ...PLATE, width: 36, height: 36, borderRadius: 10 }}>
                   <AppGlyph app={app} size={17} />
                 </span>,
                 app.label,
@@ -521,7 +526,7 @@ export function BrandSwitcher() {
                   'platform',
                   hits.length,
                   baseSearchUrl(baseUrl, query),
-                  <span aria-hidden style={{ ...PLATE, width: 36, height: 36, borderRadius: 10 }}>
+                  <span aria-hidden data-rflgd-plate="" style={{ ...PLATE, width: 36, height: 36, borderRadius: 10 }}>
                     <StackIcon size={17} />
                   </span>,
                   `„${query.trim()}“ unter Unternehmen suchen`,
@@ -529,7 +534,7 @@ export function BrandSwitcher() {
                 )}
               </>
             ) : hits.length === 0 ? (
-              <div style={{ padding: 8, fontSize: 13, color: MUTED }}>Nichts gefunden. Versuch es mit einem App-Namen.</div>
+              <div style={{ padding: 8, fontSize: 13, color: shellColor('faint') }}>Nichts gefunden. Versuch es mit einem App-Namen.</div>
             ) : null}
           </div>
         ) : (
@@ -549,7 +554,7 @@ export function BrandSwitcher() {
             </section>
 
             {orgs.length > 1 ? (
-              <section aria-label="Workspaces" style={{ display: 'grid', gap: 8, borderTop: `1px solid ${tint(12)}`, paddingTop: 12 }}>
+              <section aria-label="Workspaces" style={{ display: 'grid', gap: 8, borderTop: `1px solid ${LINE}`, paddingTop: 12 }}>
                 <span style={{ ...LABEL, padding: '0 4px' }}>Deine Workspaces</span>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {orgs.map((o) => {
@@ -564,12 +569,12 @@ export function BrandSwitcher() {
                           padding: '3px 12px 3px 4px',
                           borderRadius: 99,
                           fontSize: 12.5,
-                          border: `1px solid ${isCurrent ? BRAND : 'rgba(44,30,20,0.14)'}`,
-                          background: isCurrent ? tint(15) : 'rgba(44,30,20,0.03)',
-                          color: isCurrent ? BRAND_TEXT : INK,
+                          border: `1px solid ${isCurrent ? BRAND : HAIRLINE}`,
+                          background: shellColor(isCurrent ? 'current' : 'chip'),
+                          color: shellColor(isCurrent ? 'chip-current-ink' : 'chip-ink'),
                         }}
                       >
-                        <span aria-hidden style={{ width: 20, height: 20, borderRadius: 99, display: 'grid', placeItems: 'center', background: '#fff', border: '1px solid rgba(44,30,20,0.14)', fontFamily: MONO, fontSize: 9, color: MUTED }}>
+                        <span aria-hidden style={{ width: 20, height: 20, borderRadius: 99, display: 'grid', placeItems: 'center', background: shellColor('avatar'), border: `1px solid ${HAIRLINE}`, fontFamily: MONO, fontSize: 9, color: shellColor('avatar-ink') }}>
                           {o.name.slice(0, 2).toUpperCase()}
                         </span>
                         {o.name}
@@ -581,7 +586,7 @@ export function BrandSwitcher() {
             ) : null}
 
             {isPlatformAdmin ? (
-              <section aria-label="Plattform" style={{ display: 'grid', gap: 6, borderTop: `1px solid ${tint(12)}`, paddingTop: 12 }}>
+              <section aria-label="Plattform" style={{ display: 'grid', gap: 6, borderTop: `1px solid ${LINE}`, paddingTop: 12 }}>
                 <span style={{ ...LABEL, padding: '0 4px' }}>
                   Plattform · Workspace <span style={{ textTransform: 'none', letterSpacing: 0 }}>nur Super-Admins</span>
                 </span>
@@ -607,9 +612,9 @@ export function BrandSwitcher() {
           alignItems: 'center',
           gap: '4px 16px',
           padding: '8px 16px',
-          borderTop: `1px solid ${tint(12)}`,
+          borderTop: `1px solid ${LINE}`,
           fontSize: 11.5,
-          color: MUTED,
+          color: shellColor('faint'),
         }}
       >
         <span>↑↓ auswählen</span>
@@ -618,7 +623,7 @@ export function BrandSwitcher() {
         <a
           href="/api/oidc/signout"
           data-testid="brand-switcher-logout"
-          style={{ marginLeft: 'auto', color: '#B0413A', fontWeight: 500, fontSize: 13, textDecoration: 'none' }}
+          style={{ marginLeft: 'auto', color: shellColor('danger'), fontWeight: 500, fontSize: 13, textDecoration: 'none' }}
         >
           Abmelden
         </a>
@@ -631,6 +636,7 @@ export function BrandSwitcher() {
   if (mounted && open && pos) {
     return (
       <div data-brand-switcher style={{ position: 'relative' }}>
+        <ShellThemeStyle />
         {trigger}
         {createPortal(popover, document.body)}
         {capsule}
@@ -640,6 +646,7 @@ export function BrandSwitcher() {
 
   return (
     <div data-brand-switcher style={{ position: 'relative' }}>
+      <ShellThemeStyle />
       {trigger}
       {popover}
       {capsule}
