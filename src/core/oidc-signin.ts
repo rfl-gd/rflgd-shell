@@ -4,6 +4,7 @@ import { OIDC_STATE_COOKIE, oidcScopes, providerOrigin, secureCookies } from './
 import type { OidcEnv } from './auth/oidc-config'
 import { isSessionAccessRevoked } from './directory/user-access'
 import { jsonResponse, redirectResponse, setCookie } from './http'
+import { safeCallbackPath } from './safe-callback-path'
 import type { ShellSessionStore } from './session-store'
 
 export type OidcContext = { env: OidcEnv; sessions: ShellSessionStore }
@@ -21,7 +22,7 @@ export async function oidcSignin(req: Request, ctx: OidcContext): Promise<Respon
   }
 
   const url = new URL(req.url)
-  const callback = url.searchParams.get('callbackUrl') ?? '/admin'
+  const callback = safeCallbackPath(url.searchParams.get('callbackUrl'), env.baseUrl || url.origin)
 
   const issuerUrl = new URL(env.issuer)
   const as = await oauth.discoveryRequest(issuerUrl, { algorithm: 'oidc' }).then((r) =>

@@ -4,6 +4,7 @@ import { OIDC_STATE_COOKIE, secureCookies } from './auth/oidc-config'
 import { deniedPage } from './denied-page'
 import { cookieValue, deleteCookie, jsonResponse, redirectResponse } from './http'
 import type { OidcContext } from './oidc-signin'
+import { safeCallbackPath } from './safe-callback-path'
 import type { ShellSession } from './session-store'
 
 function clearStateCookieOn(res: Response): Response {
@@ -101,7 +102,9 @@ export async function oidcCallback(req: Request, ctx: OidcContext): Promise<Resp
     accessibleServices,
   }
 
+  // Checked again here: the state cookie is the browser's to change.
   const origin = env.baseUrl || url.origin
-  const res = clearStateCookieOn(redirectResponse(new URL(pkce.callback || '/admin', origin)))
+  const target = safeCallbackPath(typeof pkce.callback === 'string' ? pkce.callback : null, origin)
+  const res = clearStateCookieOn(redirectResponse(new URL(target, origin)))
   return sessions.save(req, session, res)
 }

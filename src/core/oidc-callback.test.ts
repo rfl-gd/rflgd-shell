@@ -138,3 +138,57 @@ describe('oidcCallback when the token exchange is refused', () => {
     expect(await res.text()).toContain('invalid_client')
   })
 })
+
+/** A provider that exchanges any code for an ID token carrying `claims`. */
+describe('oidcCallback on success', () => {
+  const discovery = {
+    issuer: 'https://id.example.test/oidc',
+    authorization_endpoint: 'https://id.example.test/oidc/auth',
+    token_endpoint: 'https://id.example.test/oidc/token',
+    jwks_uri: 'https://id.example.test/oidc/jwks',
+  }
+  const state = 'state-123'
+  const nonce = 'nonce-123'
+  const stateCookie = (callbackPath: unknown) =>
+    `rflgd-oidc-state=${encodeURIComponent(
+      JSON.stringify({ codeVerifier: 'v'.repeat(43), state, nonce, callback: callbackPath }),
+    )}`
+
+  const base64url = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url')
+  const idToken = (claims: Record<string, unknown>) => {
+    const now = Math.floor(Date.now() / 1000)
+    const payload = { iss: discovery.issuer, aud: 'client', iat: now, exp: now + 300, nonce, ...claims }
+    // The token endpoint is reached over TLS, so the ID token's signature is not checked.
+    return `${base64url({ alg: 'RS256', typ: 'JWT' })}.${base64url(payload)}.c2lnbmF0dXJl`
+  }
+
+  const exchanging = (claims: Record<string, unknown>) =>
+    vi.fn(async (input: RequestInfo | URL) => {
+      const href = String(input instanceof Request ? input.url : input)
+      if (href.includes('.well-known')) return Response.json(discovery)
+      return Response.json({
+        access_token: 'at',
+        refresh_token: 'rt',
+        token_type: 'bearer',
+        expires_in: 300,
+        id_token: idToken(claims),
+      })
+    })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it.each([
+    ['an absolute URL', 'https://evil.example.test/'],
+    ['a protocol-relative URL', '//evil.example.test'],
+    ['a non-string value', 42],
+  ])('redirects to /admin when the state cookie was changed to %s', async (_, callbackPath) => {
+    vi.stubGlobal('fetch', exchanging({ sub: 'u1', email: 'ada@example.test' }))
+
+    const res = await run(callback(`code=abc&state=${state}`, stateCookie(callbackPath)))
+
+    expect(res.status).toBe(307)
+    expect(res.headers.get('location')).toBe('https://app.example.test/admin')
+  })
+})
