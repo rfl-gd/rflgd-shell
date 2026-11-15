@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useShellConfig } from './shell-config'
 
 type ShellInfo = { unreadNotifications?: number; baseUrl?: string; org?: { tenantSlug?: string | null } | null }
 
@@ -17,11 +18,12 @@ export function NotificationBell({
   inboxUrl?: string
   className?: string
 }) {
+  const { shellInfoUrl } = useShellConfig()
   const [info, setInfo] = useState<ShellInfo | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    fetch('/api/shell-info', { credentials: 'include' })
+    fetch(shellInfoUrl, { credentials: 'include' })
       .then((res) => (res.ok ? res.json() : null))
       .then((data: ShellInfo | null) => {
         if (!cancelled) setInfo(data)
@@ -30,7 +32,7 @@ export function NotificationBell({
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [shellInfoUrl])
 
   if (!info) return null
   const unread = info.unreadNotifications ?? 0

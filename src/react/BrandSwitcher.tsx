@@ -2,10 +2,10 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { loadAppConfig } from '../core/config'
 import { baseSearchUrl, isPaletteShortcut, matchApps, type PaletteApp } from '../core/palette/palette'
 import { ImpersonationCapsule, type ImpersonationInfo } from './ImpersonationCapsule'
 import { ServiceIcon } from './ServiceIcon'
+import { useShellConfig } from './shell-config'
 import { faviconHref, useTenantFavicon, useTenantTheme } from './TenantTheme'
 
 type Booking = {
@@ -148,7 +148,7 @@ function AppGlyph({ app, size }: { app: PaletteApp; size: number }) {
  * query prefilled instead of switching here.
  */
 export function BrandSwitcher() {
-  const config = loadAppConfig()
+  const config = useShellConfig()
   const [shell, setShell] = useState<ShellInfo | null>(null)
   const [error, setError] = useState(false)
   const [open, setOpen] = useState(false)
@@ -169,7 +169,7 @@ export function BrandSwitcher() {
 
   useEffect(() => {
     let cancel = false
-    fetch('/api/shell-info', { credentials: 'include' })
+    fetch(config.shellInfoUrl, { credentials: 'include' })
       .then(async (r) => {
         if (r.status === 401 || r.status === 403) {
           // The platform ended this session (e.g. an impersonation was
@@ -188,7 +188,7 @@ export function BrandSwitcher() {
     return () => {
       cancel = true
     }
-  }, [])
+  }, [config.shellInfoUrl])
 
   const place = () => {
     const r = triggerRef.current?.getBoundingClientRect()

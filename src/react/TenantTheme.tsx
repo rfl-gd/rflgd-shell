@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useShellConfig } from './shell-config'
 
 const THEME_LINK_ID = 'rflgd-tenant-theme'
 const FAVICON_LINK_ID = 'rflgd-tenant-favicon'
@@ -104,11 +105,12 @@ export function useTenantFavicon(href: string | null | undefined): void {
  * itself): render once in the root layout.
  */
 export function TenantTheme(): null {
+  const { shellInfoUrl } = useShellConfig()
   const [href, setHref] = useState<string | null>(null)
   const [icon, setIcon] = useState<string | null>(null)
   useEffect(() => {
     let cancel = false
-    fetch('/api/shell-info', { credentials: 'include' })
+    fetch(shellInfoUrl, { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : null))
       .then(
         (
@@ -129,7 +131,7 @@ export function TenantTheme(): null {
     return () => {
       cancel = true
     }
-  }, [])
+  }, [shellInfoUrl])
   useTenantTheme(href)
   useTenantFavicon(icon)
   return null
