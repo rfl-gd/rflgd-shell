@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { OidcEnv } from './auth/oidc-config'
 import { loadOidcEnv } from './auth/oidc-config'
+import { sessionCookieValue, verifySessionCookie } from './auth/oidc-cookie'
 import { cookieSessionStore } from './cookie-session-store'
 import { oidcCallback } from './oidc-callback'
 
@@ -217,5 +218,46 @@ describe('oidcCallback on success', () => {
 
     expect(res.status).toBe(307)
     expect(res.headers.get('location')).toBe('https://app.example.test/admin')
+  })
+  it('saves the mapped claims, clears the state cookie and redirects to the callback path', async () => {
+    vi.stubGlobal(
+      'fetch',
+      exchanging({
+        sub: 'u1',
+        email: 'ada@example.test',
+        name: 'Ada',
+        email_verified: true,
+        tenant_id: 't1',
+        tenant_slug: 'acme',
+        org_slug: 'acme-org',
+        org_role: 'owner',
+        platform_role: 'admin',
+        accessible_services: ['chat', 42, 'crm'],
+      }),
+    )
+
+    const res = await run(callback(`code=abc&state=${state}`, stateCookie('/chat?tab=files#top')))
+
+    expect(res.status).toBe(307)
+    expect(res.headers.get('location')).toBe('https://app.example.test/chat?tab=files#top')
+    const cookies = res.headers.getSetCookie()
+    expect(cookies.some((c) => c.startsWith('rflgd-oidc-state=;'))).toBe(true)
+    const token = sessionCookieValue(cookies.map((c) => c.split(';')[0]).join('; '))
+    const saved = await verifySessionCookie(env.authSecret, token ?? '')
+    expect(saved).toMatchObject({
+      sub: 'u1',
+      email: 'ada@example.test',
+      name: 'Ada',
+      accessToken: 'at',
+      refreshToken: 'rt',
+      emailVerified: true,
+      tenantId: 't1',
+      tenantSlug: 'acme',
+      orgSlug: 'acme-org',
+      orgRole: 'owner',
+      platformRole: 'admin',
+      accessibleServices: ['chat', 'crm'],
+    })
+    expect(saved?.accessTokenExpiresAt).toBeGreaterThan(Math.floor(Date.now() / 1000))
   })
 })

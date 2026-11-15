@@ -88,6 +88,31 @@ describe('shellInfo', () => {
     expect(sessions.saved.length).toBe(0)
   })
 
+  it('ends the module session when the platform refuses the refreshed token too', async () => {
+    const fetchMock = stubUpstream(401, 401)
+    const sessions = memorySessionStore({ session, refreshed })
+    const res = await shellInfo(req, { platformUrl, sessions })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(bearerOf(fetchMock, 1)).toBe('Bearer new')
+    expect(res.status).toBe(401)
+    expect(await res.json()).toEqual({ error: 'session-ended' })
+    expect(sessions.ended).toBe(1)
+    expect(sessions.saved.length).toBe(0)
+  })
+
+  it('calls upstream with the old token and saves nothing when the proactive refresh fails', async () => {
+    const fetchMock = stubUpstream(200)
+    const sessions = memorySessionStore({
+      session: { ...session, accessTokenExpiresAt: nowSeconds() + 10 },
+      refreshed: null,
+    })
+    const res = await shellInfo(req, { platformUrl, sessions })
+    expect(res.status).toBe(200)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(bearerOf(fetchMock, 0)).toBe('Bearer old')
+    expect(sessions.saved.length).toBe(0)
+  })
+
   it('keeps the session on other upstream failures', async () => {
     stubUpstream(503)
     const sessions = memorySessionStore({ session })

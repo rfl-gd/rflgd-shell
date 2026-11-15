@@ -5,6 +5,9 @@ import { loadOidcEnv } from './auth/oidc-config'
 import { memorySessionStore } from './memory-session-store'
 import { oidcSignin } from './oidc-signin'
 
+const revoked = vi.hoisted(() => new Set<string>())
+vi.mock('./directory/user-access', () => ({ isSessionAccessRevoked: (sub: string) => revoked.has(sub) }))
+
 let env: OidcEnv
 
 const discovery = {
@@ -26,6 +29,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  revoked.clear()
   vi.unstubAllEnvs()
   vi.unstubAllGlobals()
 })
@@ -60,5 +64,19 @@ describe('oidcSignin callbackUrl', () => {
 
   it('stores /admin without a callbackUrl', async () => {
     expect(storedCallback(await signin(''))).toBe('/admin')
+  })
+})
+
+describe('oidcSignin with a revoked session', () => {
+  it('ends the session and sends the person to the platform\'s no-access page', async () => {
+    revoked.add('u1')
+    const sessions = memorySessionStore({ session: { sub: 'u1', email: 'ada@example.test' } })
+
+    const res = await oidcSignin(new Request('https://app.example.test/api/oidc/signin'), { env, sessions })
+
+    expect(res.status).toBe(307)
+    expect(res.headers.get('location')).toBe('https://id.example.test/apps?error=no-access')
+    expect(sessions.ended).toBe(1)
+    expect(fetch).not.toHaveBeenCalled()
   })
 })
