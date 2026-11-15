@@ -64,7 +64,9 @@ also answers `POST`, and without provider configuration clears the session
 cookie and redirects straight to the signed-out page.
 
 The signed-out page is `/login?signed-out=1` unless `RFLGD_SIGNED_OUT_PATH`
-names another path. It must exist, and the app clears its own client state
+names another path. An app may refuse a cross-site `GET` (sign-out CSRF, e.g.
+by `Sec-Fetch-Site`); a same-origin click from the switcher must work. The
+page must exist, and the app clears its own client state
 there (local storage, caches, in-memory stores), because the shell cannot know
 it.
 
@@ -105,7 +107,8 @@ import { app } from '../src/server'
 describeShellContract({ handle: (req) => app.fetch(req), origin: 'https://app.example.test' })
 ```
 
-It sends `GET` requests and expects: `/api/shell-info` answers 401 JSON with an
+It sends `GET` requests shaped like a same-origin browser navigation
+(`Sec-Fetch-Site: same-origin`, a same-origin `Referer`) and expects: `/api/shell-info` answers 401 JSON with an
 `error`; `/api/oidc/signin?callbackUrl=/x` redirects, and not back to itself;
 an external `callbackUrl` is neither a server error nor the redirect target;
 `/api/oidc/signout` redirects. Stub the provider's discovery document

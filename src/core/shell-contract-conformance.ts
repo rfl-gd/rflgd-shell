@@ -17,7 +17,15 @@ const isRedirect = (res: Response) => res.status >= 300 && res.status < 400
  */
 export function describeShellContract({ handle, origin }: ShellContractTarget): void {
   const base = origin.replace(/\/$/, '')
-  const get = (path: string) => handle(new Request(`${base}${path}`, { redirect: 'manual' }))
+  // A same-origin browser navigation, as when the switcher's links are clicked. Apps may refuse
+  // cross-site GETs (sign-out CSRF), so the suite never sends one.
+  const get = (path: string) =>
+    handle(
+      new Request(`${base}${path}`, {
+        redirect: 'manual',
+        headers: { 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'navigate', referer: `${base}/` },
+      }),
+    )
 
   describe('reFlagged Shell Contract', () => {
     it('GET /api/shell-info without a session answers 401 JSON with an error', async () => {
