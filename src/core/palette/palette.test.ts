@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { baseSearchUrl, isPaletteShortcut, matchApps, type PaletteApp } from './palette'
+import { baseSearchUrl, httpUrl, isPaletteShortcut, matchApps, type PaletteApp } from './palette'
 
 const apps: PaletteApp[] = [
   { key: 'base', label: 'Base', tagline: 'Start, Team und Einstellungen', icon: null, href: '/', current: false },
@@ -38,5 +38,19 @@ describe('isPaletteShortcut', () => {
     expect(isPaletteShortcut(key({ ctrlKey: true, key: 'K' }))).toBe(true)
     expect(isPaletteShortcut(key({}))).toBe(false)
     expect(isPaletteShortcut(key({ ctrlKey: true, shiftKey: true }))).toBe(false)
+  })
+})
+
+describe('httpUrl', () => {
+  it.each([
+    ['https://app.rfl.gd/x', 'https://app.rfl.gd/x'],
+    ['http://localhost:3000', 'http://localhost:3000'],
+    ['javascript:alert(1)', undefined],
+    ['data:text/html,<script>alert(1)</script>', undefined],
+    ['/relative', undefined],
+    [null, undefined],
+    [42, undefined],
+  ])('keeps only absolute http(s) URLs: %s', (value, expected) => {
+    expect(httpUrl(value)).toBe(expected)
   })
 })

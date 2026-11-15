@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useShellConfig } from './shell-config'
 import { ShellThemeStyle, shellColor } from './shell-theme'
+import { httpUrl } from '../core/palette/palette'
 
 type ShellInfo = { unreadNotifications?: number; baseUrl?: string; org?: { tenantSlug?: string | null } | null }
 
@@ -37,7 +38,7 @@ export function NotificationBell({
 
   if (!info) return null
   const unread = info.unreadNotifications ?? 0
-  const href = inboxUrl ?? `${(info.baseUrl ?? 'https://app.rfl.gd').replace(/\/$/, '')}/benachrichtigungen`
+  const href = inboxUrl ?? `${(httpUrl(info.baseUrl) ?? 'https://app.rfl.gd').replace(/\/$/, '')}/benachrichtigungen`
   const label = unread > 0 ? `Benachrichtigungen, ${unread} ungelesen` : 'Benachrichtigungen'
 
   return (
