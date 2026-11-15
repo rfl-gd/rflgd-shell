@@ -2,47 +2,62 @@
 
 `scripts/verify-consumers.sh` packs the shell and, for every consumer in `scripts/consumers.txt`,
 installs the tarball into a scratch copy of the checkout (the checkouts themselves are never
-touched), then runs `tsc --noEmit` and, when the checkout has a `.env`, `pnpm run build`. A step
-that fails with 2.0 is re-run on a fresh copy installed from the consumer's own lockfile (its
+touched), then runs `tsc --noEmit`, `pnpm run build` and, when the app has vitest in its
+devDependencies, `vitest run`. The build uses the checkout's `.env`; without one it copies
+`.env.example` to `.env` in the copy only ("example env"), and is skipped when neither exists. A
+step that fails with 2.0 is re-run on a fresh copy installed from the consumer's own lockfile (its
 current 1.x shell); only a step that passes there counts as a regression.
 
-## Result
+## Result (fix wave, tarball with the native-ESM, callbackUrl and denied-page fixes)
 
-No regressions. 12 of 16 consumers typecheck with 2.0, all 5 attempted builds pass, and the 4
-typecheck failures are pre-existing: the same errors, error for error, with the current 1.x shell.
+No regressions. All 16 consumers install; 12 typecheck; 12 of 14 attempted builds pass; 5 of 15
+test suites pass. Every failure is pre-existing: the baseline with the current 1.x shell fails the
+same step, and for the test step with the same failing files and the same counts. kollega's
+middleware unit test (which loads `@reflagged/shell/middleware` natively) passes.
 
-| consumer | typecheck 2.0 | build 2.0 | baseline (only for failures) |
-|---|---|---|---|
-| agentforge/apps/agentforge | pass | skipped | - |
-| chat | fail | skipped | typecheck fail |
-| company-brain | pass | skipped | - |
-| corporate-memory | pass | pass | - |
-| corporate-voice | pass | skipped | - |
-| flagbit-cockpit/apps/web | pass | skipped | - |
-| iso-zertifierungsagent | fail | skipped | typecheck fail |
-| kollega | pass | pass | - |
-| matchingportal | pass | pass | - |
-| peoplepulse | pass | skipped | - |
-| rflgd-contentcreator | pass | pass | - |
-| rflgd-demo | pass | skipped | - |
-| rflgd-project-template-basic | fail | skipped | typecheck fail |
-| rflgd-project-template | fail | skipped | typecheck fail |
-| rflgd-simple-crm | pass | skipped | - |
-| voice-gcms | pass | pass | - |
+| consumer | install 2.0 | typecheck 2.0 | build 2.0 | test 2.0 | baseline (only for failures) |
+|---|---|---|---|---|---|
+| agentforge/apps/agentforge | pass | pass | skipped | fail | test fail |
+| chat | pass | fail | pass (example env) | fail | typecheck fail, test fail |
+| company-brain | pass | pass | pass (example env) | pass | - |
+| corporate-memory | pass | pass | pass | fail | test fail |
+| corporate-voice | pass | pass | pass (example env) | pass | - |
+| flagbit-cockpit/apps/web | pass | pass | skipped | pass | - |
+| iso-zertifierungsagent | pass | fail | pass (example env) | fail | typecheck fail, test fail |
+| kollega | pass | pass | pass | fail | test fail |
+| matchingportal | pass | pass | pass | fail | test fail |
+| peoplepulse | pass | pass | pass (example env) | pass | - |
+| rflgd-contentcreator | pass | pass | pass | fail | test fail |
+| rflgd-demo | pass | pass | pass (example env) | skipped | - |
+| rflgd-project-template-basic | pass | fail | fail (example env) | fail | typecheck fail, build fail (example env), test fail |
+| rflgd-project-template | pass | fail | fail (example env) | pass | typecheck fail, build fail (example env) |
+| rflgd-simple-crm | pass | pass | pass (example env) | fail | test fail |
+| voice-gcms | pass | pass | pass | fail | test fail |
 
-Builds are skipped where the checkout has no `.env` (Payload apps cannot build without one).
+Skipped: builds of `flagbit-cockpit/apps/web` and `agentforge/apps/agentforge` (no `.env` or
+`.env.example` in the app), tests of `rflgd-demo` (no vitest).
 Not covered: `corporate-memory-langfuse` and `simple-crm` (stale duplicate checkouts) and
 `corenode` (not an rfl-gd repository).
 
 ## Pre-existing failures (identical with 1.x)
 
-- **chat**: one cast error in its own auth code (`TS2352`, `User` to `undefined`).
-- **iso-zertifierungsagent**: seven strictness errors in its tests.
+- **chat**: typecheck: one cast error in its own auth code (`TS2352`). Tests: 4 failures in 2
+  files (fixtures without `folders`, an unmet expectation).
+- **iso-zertifierungsagent**: typecheck: seven strictness errors in its tests. Tests: an
+  end-to-end pipeline test that times out without its services.
 - **rflgd-project-template-basic**: imports `signSession`, `verifySession`, `readSessionCookie`
-  and `Session` from `@reflagged/shell/auth/oidc-cookie`, which no 1.x release exported either.
-  The template is out of date with the shell, not broken by 2.0.
+  and `Session` from `@reflagged/shell/auth/oidc-cookie`, which no 1.x release exported either;
+  typecheck, build and its oidc tests all fail on that. Out of date with the shell, not broken by 2.0.
 - **rflgd-project-template**: missing `@payloadcms/db-mongodb` and `sharp`, a Mastra config
-  mismatch and a read-only `NODE_ENV` assignment in a test helper.
+  mismatch and a read-only `NODE_ENV` assignment in a test helper; the build stops on the
+  missing module.
+- **voice-gcms**: its tests import `signSession` the same way (3 failures).
+- **kollega**, **rflgd-simple-crm**, **rflgd-contentcreator**: integration suites need Postgres or
+  MongoDB, which this run does not start.
+- **corporate-memory**: 12 failures from LLM-dependent tests answering non-JSON.
+- **matchingportal**: one turnstile test that needs the network.
+- **agentforge**: a repository-content test that runs `git ls-files`, which a copy without
+  `.git` cannot answer.
 
 ## Notes on the script
 
