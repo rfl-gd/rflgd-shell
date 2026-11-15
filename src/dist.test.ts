@@ -1,4 +1,6 @@
+import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
+import { pathToFileURL } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 describe.skipIf(!existsSync('dist'))('dist', () => {
@@ -19,5 +21,18 @@ describe.skipIf(!existsSync('dist'))('dist', () => {
   it('ships the conformance suite as its own entry, outside core', () => {
     expect(existsSync('dist/testing.js')).toBe(true)
     expect(readFileSync('dist/core.js', 'utf8')).not.toContain('vitest')
+  })
+  it('every entry except testing loads under native Node ESM', () => {
+    // Consumers' vitest loads node_modules .js natively, without a bundler's
+    // resolution, so an extensionless deep import such as 'next/server' fails there.
+    const exportsMap = JSON.parse(readFileSync('package.json', 'utf8')).exports as Record<string, unknown>
+    const files = Object.entries(exportsMap)
+      .filter(([key, value]) => key !== './testing' && typeof value === 'object')
+      .map(([, value]) => pathToFileURL((value as { import: string }).import).href)
+    const script = `for (const f of ${JSON.stringify(files)}) await import(f)`
+
+    expect(() =>
+      execFileSync(process.execPath, ['--input-type=module', '-e', script], { stdio: 'pipe' }),
+    ).not.toThrow()
   })
 })

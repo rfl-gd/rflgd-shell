@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse } from 'next/server.js'
 
 import { OIDC_COOKIE, secureCookies, signedOutPath } from '../../core/auth/oidc-config'
 import { oidcSignout } from '../../core/oidc-signout'

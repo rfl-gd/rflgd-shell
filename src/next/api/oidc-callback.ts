@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse } from 'next/server.js'
 
 import { deniedPage } from '../../core/denied-page'
 import { oidcCallback } from '../../core/oidc-callback'

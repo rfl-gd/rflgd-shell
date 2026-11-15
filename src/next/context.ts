@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse } from 'next/server.js'
 
 import { loadOidcEnv } from '../core/auth/oidc-config'
 import { cookieSessionStore } from '../core/cookie-session-store'

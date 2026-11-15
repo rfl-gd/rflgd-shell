@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse } from 'next/server.js'
 
 import { shellInfo } from '../../core/shell-info'
 import { shellInfoContext, toNextResponse } from '../context'
