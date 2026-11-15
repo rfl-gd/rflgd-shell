@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { httpUrl } from '../core/palette/palette'
 
 /**
  * What rflgd-base sends in `impersonation` while a platform admin acts as a
@@ -122,7 +123,7 @@ export function ImpersonationCapsule({ info }: { info: ImpersonationInfo }) {
       await call('DELETE')
       // The module session belongs to the customer; reloading lets the
       // platform refuse it and the module sign in again.
-      if (toPlatform) window.location.assign(info.platformUrl)
+      if (toPlatform) window.location.assign(httpUrl(info.platformUrl) ?? '/')
       else window.location.reload()
     } catch {
       setBusy(false)

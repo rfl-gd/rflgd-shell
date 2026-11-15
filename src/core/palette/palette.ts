@@ -23,6 +23,21 @@ export function matchApps(apps: PaletteApp[], query: string): PaletteApp[] {
   return apps.filter((a) => a.label.toLowerCase().includes(q) || a.tagline?.toLowerCase().includes(q))
 }
 
+/**
+ * A link target from the shell info, only when it is an absolute http(s) URL.
+ * The shell info is relayed by the host app; a `javascript:` or `data:` value
+ * must never become an `href` or a navigation target.
+ */
+export function httpUrl(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  try {
+    const { protocol } = new URL(value)
+    return protocol === 'https:' || protocol === 'http:' ? value : undefined
+  } catch {
+    return undefined
+  }
+}
+
 /** Base opens its palette with `?palette=<query>` prefilled. */
 export function baseSearchUrl(baseUrl: string, query: string): string {
   return `${baseUrl.replace(/\/+$/, '')}/?palette=${encodeURIComponent(query.trim())}`

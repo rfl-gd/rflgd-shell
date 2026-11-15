@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { baseSearchUrl, isPaletteShortcut, matchApps, type PaletteApp } from '../core/palette/palette'
+import { baseSearchUrl, httpUrl, isPaletteShortcut, matchApps, type PaletteApp } from '../core/palette/palette'
 import { ImpersonationCapsule, type ImpersonationInfo } from './ImpersonationCapsule'
 import { ServiceIcon } from './ServiceIcon'
 import { useShellConfig } from './shell-config'
@@ -244,13 +244,13 @@ export function BrandSwitcher() {
   useTenantFavicon(faviconHref(shell?.org))
 
   const orgName = shell?.org?.name ?? null
-  const baseUrl = shell?.baseUrl ?? 'https://app.rfl.gd'
+  const baseUrl = httpUrl(shell?.baseUrl) ?? 'https://app.rfl.gd'
   const orgs = shell?.orgs ?? (shell?.org ? [shell.org] : [])
   const isPlatformAdmin = shell?.user.role === 'superadmin' || shell?.user.role === 'reflagged_admin'
 
   const apps = useMemo<PaletteApp[]>(() => {
     const taglines = new Map((shell?.catalog ?? []).map((c) => [c.service, c.tagline]))
-    const ready = (shell?.bookings ?? []).filter((b) => b.status === 'ready' && b.url)
+    const ready = (shell?.bookings ?? []).filter((b) => b.status === 'ready' && httpUrl(b.url))
     return [
       { key: 'base', label: 'Base', tagline: 'Start, Team und Einstellungen', icon: null, href: baseUrl, current: false },
       ...ready.map((b) => ({
@@ -542,8 +542,8 @@ export function BrandSwitcher() {
             <section aria-label="Apps" style={{ display: 'grid', gap: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, padding: '0 4px' }}>
                 <span style={LABEL}>Deine Apps</span>
-                {shell?.catalogUrl ? (
-                  <a href={shell.catalogUrl} style={{ fontSize: 12.5, fontWeight: 500, color: BRAND_TEXT, textDecoration: 'none' }}>
+                {httpUrl(shell?.catalogUrl) ? (
+                  <a href={httpUrl(shell?.catalogUrl)} style={{ fontSize: 12.5, fontWeight: 500, color: BRAND_TEXT, textDecoration: 'none' }}>
                     Katalog öffnen
                   </a>
                 ) : null}
