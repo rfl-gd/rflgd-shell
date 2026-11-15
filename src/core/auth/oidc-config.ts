@@ -86,7 +86,8 @@ export function loadOidcEnv(): OidcEnv | null {
   const clientId = process.env.OIDC_CLIENT_ID
   const clientSecret = process.env.OIDC_CLIENT_SECRET
   const authSecret = process.env.AUTH_SECRET
-  const base = process.env.NEXT_PUBLIC_SERVER_URL
+  // First non-empty wins; RFLGD_SERVER_URL lets non-Next hosts configure the shell.
+  const base = process.env.RFLGD_SERVER_URL || process.env.NEXT_PUBLIC_SERVER_URL
   if (!issuer || !clientId || !clientSecret || !authSecret || !base) return null
   return {
     issuer,

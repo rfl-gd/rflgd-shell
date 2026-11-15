@@ -1,7 +1,7 @@
-import { OIDC_COOKIE, OIDC_SESSION_TTL, secureCookies } from '../lib/auth/oidc-config'
-import type { OidcEnv } from '../lib/auth/oidc-config'
-import { sessionCookieValue, signSessionCookie, verifySessionCookie } from '../lib/auth/oidc-cookie'
-import { refreshAccessToken } from '../lib/auth/oidc-refresh'
+import { OIDC_COOKIE, OIDC_SESSION_TTL, secureCookies } from './auth/oidc-config'
+import type { OidcEnv } from './auth/oidc-config'
+import { sessionCookieValue, signSessionCookie, verifySessionCookie } from './auth/oidc-cookie'
+import { refreshAccessToken } from './auth/oidc-refresh'
 import { deleteCookie, setCookie } from './http'
 import type { ShellSession, ShellSessionStore } from './session-store'
 

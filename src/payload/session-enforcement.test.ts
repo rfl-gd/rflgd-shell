@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { GET as signin } from '../api/oidc-signin'
-import { OIDC_COOKIE } from '../auth/oidc-config'
-import { signSessionCookie } from '../auth/oidc-cookie'
-import { createOidcStrategy } from '../auth/nextauth-strategy'
-import { getUserAccess } from './user-access'
+import { GET as signin } from '../next/api/oidc-signin'
+import { OIDC_COOKIE } from '../core/auth/oidc-config'
+import { signSessionCookie } from '../core/auth/oidc-cookie'
+import { createOidcStrategy } from './strategy'
+import { getUserAccess } from '../core/directory/user-access'
 
 /**
  * The shell ends a module session when the base says the user lost access:
@@ -116,8 +116,7 @@ describe('sign-in route', () => {
     )
     expect(res.status).toBe(307)
     expect(res.headers.get('location')).toBe('https://base.test/apps?error=no-access')
-    const cleared = res.cookies.get(OIDC_COOKIE)
-    expect(cleared?.value).toBe('')
-    expect(cleared?.maxAge).toBe(0)
+    // Asserted on the header: NextResponse's cookie parser drops an empty value and Max-Age=0.
+    expect(res.headers.get('set-cookie')).toMatch(new RegExp(`^${OIDC_COOKIE}=;.*Max-Age=0`))
   })
 })

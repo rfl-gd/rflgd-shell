@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { OidcEnv } from '../lib/auth/oidc-config'
-import { loadOidcEnv } from '../lib/auth/oidc-config'
+import type { OidcEnv } from './auth/oidc-config'
+import { loadOidcEnv } from './auth/oidc-config'
 import { cookieSessionStore } from './cookie-session-store'
 import { oidcCallback } from './oidc-callback'
 

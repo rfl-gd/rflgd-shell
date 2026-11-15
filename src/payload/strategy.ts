@@ -1,9 +1,9 @@
 import { randomBytes } from 'node:crypto'
 import type { AuthStrategy } from 'payload'
 
-import { loadAppConfig } from '../../config'
-import { isSessionAccessRevoked } from '../directory/user-access'
-import { sessionCookieValue, verifySessionCookie } from './oidc-cookie'
+import { loadAppConfig } from '../core/config'
+import { isSessionAccessRevoked } from '../core/directory/user-access'
+import { sessionCookieValue, verifySessionCookie } from '../core/auth/oidc-cookie'
 
 /** What the platform knows about a person signing in for the first time. */
 export type NewUserContext = {

@@ -1,4 +1,4 @@
-import type { OidcSessionToken } from '../lib/auth/oidc-config'
+import type { OidcSessionToken } from './auth/oidc-config'
 
 /** The signed-in user's session; `accessToken` may be null (shellInfo answers `no-access-token`). */
 export type ShellSession = Omit<OidcSessionToken, 'iat' | 'exp'>

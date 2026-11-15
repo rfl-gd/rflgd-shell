@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { resolveNewUserRole, type NewUserContext } from './nextauth-strategy'
+import { resolveNewUserRole, type NewUserContext } from './strategy'
 
 /**
  * Who becomes an administrator on a fresh instance is decided here. A silent

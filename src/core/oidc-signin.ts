@@ -1,8 +1,8 @@
 import * as oauth from 'oauth4webapi'
 
-import { OIDC_STATE_COOKIE, oidcScopes, providerOrigin, secureCookies } from '../lib/auth/oidc-config'
-import type { OidcEnv } from '../lib/auth/oidc-config'
-import { isSessionAccessRevoked } from '../lib/directory/user-access'
+import { OIDC_STATE_COOKIE, oidcScopes, providerOrigin, secureCookies } from './auth/oidc-config'
+import type { OidcEnv } from './auth/oidc-config'
+import { isSessionAccessRevoked } from './directory/user-access'
 import { jsonResponse, redirectResponse, setCookie } from './http'
 import type { ShellSessionStore } from './session-store'
 

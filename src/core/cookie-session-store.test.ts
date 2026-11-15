@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
-import { signSessionCookie } from '../lib/auth/oidc-cookie'
-import type { OidcEnv } from '../lib/auth/oidc-config'
+import { signSessionCookie } from './auth/oidc-cookie'
+import type { OidcEnv } from './auth/oidc-config'
 import { cookieSessionStore } from './cookie-session-store'
 import { jsonResponse } from './http'
 import type { ShellSession } from './session-store'
 import { sessionStoreConformance } from './session-store-conformance'
 
-vi.mock('../lib/auth/oidc-refresh', () => ({
+vi.mock('./auth/oidc-refresh', () => ({
   refreshAccessToken: vi.fn(async () => ({ accessToken: 'new', refreshToken: 'r2', accessTokenExpiresAt: 9e9 })),
 }))
 

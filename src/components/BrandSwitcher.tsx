@@ -2,8 +2,8 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { loadAppConfig } from '../config'
-import { baseSearchUrl, isPaletteShortcut, matchApps, type PaletteApp } from '../lib/palette/palette'
+import { loadAppConfig } from '../core/config'
+import { baseSearchUrl, isPaletteShortcut, matchApps, type PaletteApp } from '../core/palette/palette'
 import { ImpersonationCapsule, type ImpersonationInfo } from './ImpersonationCapsule'
 import { ServiceIcon } from './ServiceIcon'
 import { faviconHref, useTenantFavicon, useTenantTheme } from './TenantTheme'

@@ -1,4 +1,4 @@
-import { providerOrigin, signedOutPath } from '../lib/auth/oidc-config'
+import { providerOrigin, signedOutPath } from './auth/oidc-config'
 import { redirectResponse } from './http'
 import type { OidcContext } from './oidc-signin'
 

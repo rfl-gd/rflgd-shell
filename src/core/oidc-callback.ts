@@ -1,6 +1,6 @@
 import * as oauth from 'oauth4webapi'
 
-import { OIDC_STATE_COOKIE, secureCookies } from '../lib/auth/oidc-config'
+import { OIDC_STATE_COOKIE, secureCookies } from './auth/oidc-config'
 import { deniedPage } from './denied-page'
 import { cookieValue, deleteCookie, jsonResponse, redirectResponse } from './http'
 import type { OidcContext } from './oidc-signin'
