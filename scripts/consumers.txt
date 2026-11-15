@@ -1,0 +1,21 @@
+# Local checkouts of @reflagged/shell consumers, relative to $DEV_ROOT (default: ~/Development).
+# Workspace apps: <workspace-root>:<app-subdir>. Lines starting with # are ignored.
+chat
+company-brain
+corporate-voice
+corporate-memory
+iso-zertifierungsagent
+matchingportal
+kollega
+peoplepulse
+rflgd-contentcreator
+rflgd-project-template-basic
+rflgd-project-template
+rflgd-demo
+rflgd-simple-crm
+voice-gcms
+flagbit-cockpit:apps/web
+agentforge:apps/agentforge
+# corporate-memory-langfuse -- stale duplicate checkout of corporate-memory (old branch)
+# simple-crm -- stale duplicate checkout of rflgd-simple-crm
+# corenode -- not an rfl-gd repository; the release fan-out never touches it
