@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { jsonResponse } from './http'
+import type { MemorySessionStore } from './memory-session-store'
 import type { ShellSession, ShellSessionStore } from './session-store'
+
+function isMemoryStore(store: ShellSessionStore): store is MemorySessionStore {
+  return 'saved' in store && 'ended' in store
+}
 
 /** A request that carries the cookie `res` sets, as a browser would send it next. */
 function followUpRequest(req: Request, res: Response): Request {
@@ -10,9 +15,9 @@ function followUpRequest(req: Request, res: Response): Request {
 
 /**
  * Behaviour every `ShellSessionStore` must show. `make` returns a store, a
- * request carrying `session`, and that session. Stores exposing `saved` /
- * `ended` (the memory store) are checked through them; others through the
- * cookie their response sets.
+ * request carrying `session`, and that session. The memory store is checked
+ * through its `saved` / `ended` records; others through the cookie their
+ * response sets.
  */
 export function sessionStoreConformance(
   name: string,
@@ -33,8 +38,8 @@ export function sessionStoreConformance(
       const { store, req, session } = make()
       const res = await store.save(req, { ...session, accessToken: 'saved' }, jsonResponse({}))
       expect(res).toBeInstanceOf(Response)
-      if ('saved' in store) {
-        expect((store.saved as ShellSession[]).at(-1)?.accessToken).toBe('saved')
+      if (isMemoryStore(store)) {
+        expect(store.saved.at(-1)?.accessToken).toBe('saved')
       } else {
         expect((await store.load(followUpRequest(req, res)))?.accessToken).toBe('saved')
       }
@@ -44,9 +49,10 @@ export function sessionStoreConformance(
       const { store, req } = make()
       const res = await store.end(req, jsonResponse({}))
       expect(res).toBeInstanceOf(Response)
-      if ('ended' in store) {
+      if (isMemoryStore(store)) {
         expect(store.ended).toBe(1)
       } else {
+        expect(res.headers.get('set-cookie')).toBeTruthy()
         expect(await store.load(followUpRequest(req, res))).toBeNull()
       }
     })

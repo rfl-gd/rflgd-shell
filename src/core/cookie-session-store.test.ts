@@ -56,4 +56,19 @@ describe('cookieSessionStore', () => {
     const res = await store.save(req, session, jsonResponse({}))
     expect(res.headers.get('set-cookie')).toMatch(/^rflgd-session=.+; Path=\/; Max-Age=2592000; HttpOnly; SameSite=lax$/)
   })
+
+  it('save marks the cookie Secure in production', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    try {
+      const res = await store.save(req, session, jsonResponse({}))
+      expect(res.headers.get('set-cookie')).toContain('; Secure')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('end deletes the session cookie with the login attributes', async () => {
+    const res = await store.end(req, jsonResponse({}))
+    expect(res.headers.get('set-cookie')).toMatch(/^rflgd-session=; Path=\/; Max-Age=0; HttpOnly; SameSite=lax$/)
+  })
 })
