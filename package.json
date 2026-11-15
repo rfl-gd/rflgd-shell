@@ -1,46 +1,121 @@
 {
   "name": "@reflagged/shell",
-  "version": "1.11.1",
+  "version": "2.0.0",
   "description": "Shared app shell for Reflagged services — OIDC auth, SSO, app switcher",
   "type": "module",
   "sideEffects": false,
   "files": [
-    "src",
-    "!src/**/*.test.{ts,tsx}",
-    "tsconfig.json",
+    "dist",
     "README.md"
   ],
   "publishConfig": {
     "access": "public"
   },
   "exports": {
-    "./middleware": "./src/entries/middleware.ts",
-    "./config": "./src/entries/config.ts",
-    "./components/BrandSwitcher": "./src/entries/components/BrandSwitcher.ts",
-    "./components/TenantTheme": "./src/entries/components/TenantTheme.ts",
-    "./auth/oidc-config": "./src/entries/auth/oidc-config.ts",
-    "./auth/oidc-cookie": "./src/entries/auth/oidc-cookie.ts",
-    "./auth/can-access": "./src/entries/auth/can-access.ts",
-    "./auth/oidc-refresh": "./src/entries/auth/oidc-refresh.ts",
-    "./auth/nextauth-strategy": "./src/entries/auth/nextauth-strategy.ts",
-    "./api/oidc-signin": "./src/entries/api/oidc-signin.ts",
-    "./api/oidc-callback": "./src/entries/api/oidc-callback.ts",
-    "./api/oidc-signout": "./src/entries/api/oidc-signout.ts",
-    "./api/shell-info": "./src/entries/api/shell-info.ts",
+    "./middleware": {
+      "types": "./dist/middleware.d.ts",
+      "import": "./dist/middleware.js"
+    },
+    "./config": {
+      "types": "./dist/config.d.ts",
+      "import": "./dist/config.js"
+    },
+    "./components/BrandSwitcher": {
+      "types": "./dist/components/BrandSwitcher.d.ts",
+      "import": "./dist/components/BrandSwitcher.js"
+    },
+    "./components/TenantTheme": {
+      "types": "./dist/components/TenantTheme.d.ts",
+      "import": "./dist/components/TenantTheme.js"
+    },
+    "./auth/oidc-config": {
+      "types": "./dist/auth/oidc-config.d.ts",
+      "import": "./dist/auth/oidc-config.js"
+    },
+    "./auth/oidc-cookie": {
+      "types": "./dist/auth/oidc-cookie.d.ts",
+      "import": "./dist/auth/oidc-cookie.js"
+    },
+    "./auth/can-access": {
+      "types": "./dist/auth/can-access.d.ts",
+      "import": "./dist/auth/can-access.js"
+    },
+    "./auth/oidc-refresh": {
+      "types": "./dist/auth/oidc-refresh.d.ts",
+      "import": "./dist/auth/oidc-refresh.js"
+    },
+    "./auth/nextauth-strategy": {
+      "types": "./dist/auth/nextauth-strategy.d.ts",
+      "import": "./dist/auth/nextauth-strategy.js"
+    },
+    "./api/oidc-signin": {
+      "types": "./dist/api/oidc-signin.d.ts",
+      "import": "./dist/api/oidc-signin.js"
+    },
+    "./api/oidc-callback": {
+      "types": "./dist/api/oidc-callback.d.ts",
+      "import": "./dist/api/oidc-callback.js"
+    },
+    "./api/oidc-signout": {
+      "types": "./dist/api/oidc-signout.d.ts",
+      "import": "./dist/api/oidc-signout.js"
+    },
+    "./api/shell-info": {
+      "types": "./dist/api/shell-info.d.ts",
+      "import": "./dist/api/shell-info.js"
+    },
     "./package.json": "./package.json",
-    "./components/ServiceIcon": "./src/entries/components/ServiceIcon.ts",
-    "./notifications/notifier": "./src/entries/notifications/notifier.ts",
-    "./settings": "./src/entries/settings.ts",
-    "./directory": "./src/entries/directory.ts",
-    "./notifications/blocks": "./src/entries/notifications/blocks.ts",
-    "./components/NotificationBell": "./src/entries/components/NotificationBell.ts",
-    "./components/ImpersonationCapsule": "./src/entries/components/ImpersonationCapsule.ts",
-    "./core": "./src/core/index.ts",
-    "./next": "./src/next/index.ts",
-    "./payload": "./src/payload/index.ts",
-    "./react": "./src/react/index.ts"
+    "./components/ServiceIcon": {
+      "types": "./dist/components/ServiceIcon.d.ts",
+      "import": "./dist/components/ServiceIcon.js"
+    },
+    "./notifications/notifier": {
+      "types": "./dist/notifications/notifier.d.ts",
+      "import": "./dist/notifications/notifier.js"
+    },
+    "./settings": {
+      "types": "./dist/settings.d.ts",
+      "import": "./dist/settings.js"
+    },
+    "./directory": {
+      "types": "./dist/directory.d.ts",
+      "import": "./dist/directory.js"
+    },
+    "./notifications/blocks": {
+      "types": "./dist/notifications/blocks.d.ts",
+      "import": "./dist/notifications/blocks.js"
+    },
+    "./components/NotificationBell": {
+      "types": "./dist/components/NotificationBell.d.ts",
+      "import": "./dist/components/NotificationBell.js"
+    },
+    "./components/ImpersonationCapsule": {
+      "types": "./dist/components/ImpersonationCapsule.d.ts",
+      "import": "./dist/components/ImpersonationCapsule.js"
+    },
+    "./core": {
+      "types": "./dist/core.d.ts",
+      "import": "./dist/core.js"
+    },
+    "./next": {
+      "types": "./dist/next.d.ts",
+      "import": "./dist/next.js"
+    },
+    "./payload": {
+      "types": "./dist/payload.d.ts",
+      "import": "./dist/payload.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js"
+    }
   },
   "scripts": {
+    "build": "tsup",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -56,6 +131,7 @@
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
+    "@types/node": "^25.9.1",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "lucide-react": "^0.500.0",
@@ -63,12 +139,16 @@
     "payload": "^3.79.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "tsup": "^8.5.1",
     "typescript": "^5.7.0",
     "vitest": "^3.2.0"
   },
   "peerDependenciesMeta": {
-    "lucide-react": {
-      "optional": false
+    "next": {
+      "optional": true
+    },
+    "payload": {
+      "optional": true
     }
   }
 }

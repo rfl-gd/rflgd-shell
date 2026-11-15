@@ -8,8 +8,9 @@ Shared app shell for Reflagged services. Provides:
 - `BrandSwitcher` component (app palette: icons, search, ⌘K / Ctrl+K)
 - Admin route SSO enforcement middleware
 
-Published as a **public npm package of raw TS/TSX source**. Consumers transpile
-it in-app via Next's `transpilePackages` — there is no build/bundle step.
+Published as a **public npm package of compiled ESM** (`dist/`, with type
+declarations). Next.js is optional: `./core` and `./react` run in any React app
+or Web-standard server.
 
 ## Install
 
@@ -17,28 +18,35 @@ it in-app via Next's `transpilePackages` — there is no build/bundle step.
 pnpm add @reflagged/shell
 ```
 
-In each consuming Next.js app, add the package to `transpilePackages`
-(**required** — the package ships `.ts/.tsx` source, incl. a `'use client'`
-component, that Next must compile):
+No `transpilePackages` entry is needed any more; an existing one is harmless
+to keep. `next` and `payload` are optional peers, needed only for the `./next`
+and `./payload` entries.
 
-```ts
-// next.config.ts
-const nextConfig = {
-  transpilePackages: ['@reflagged/shell'],
-}
-```
+Configure the app's identity:
 
-Do **not** add it to `serverExternalPackages` — it must be transpiled.
+- **Next.js:** via env vars (`NEXT_PUBLIC_*` are inlined at **build** time):
 
-Configure via env vars (`NEXT_PUBLIC_*` are inlined at **build** time):
+  | Variable | Purpose |
+  |----------|---------|
+  | `NEXT_PUBLIC_RFLGD_APP_KEY` | App key matching the platform catalog `service` value (highlights the current app as "aktuell") |
+  | `NEXT_PUBLIC_RFLGD_APP_LABEL` | Display name in BrandSwitcher |
+  | `RFLGD_DEFAULT_USER_ROLE` | Role for auto-created users (default: `user`) |
 
-| Variable | Purpose |
-|----------|---------|
-| `NEXT_PUBLIC_RFLGD_APP_KEY` | App key matching the platform catalog `service` value (highlights the current app as "aktuell") |
-| `NEXT_PUBLIC_RFLGD_APP_LABEL` | Display name in BrandSwitcher |
-| `RFLGD_DEFAULT_USER_ROLE` | Role for auto-created users (default: `user`) |
+- **Other React apps:** wrap the components in `ShellProvider` (see
+  [Outside Next.js](#outside-nextjs-vite-hono-remix)). Without a provider the
+  components fall back to the env vars above.
 
 ## Entry points
+
+| Entry | Contents |
+|-------|----------|
+| `@reflagged/shell/core` | Framework-free: OIDC sign-in/callback/sign-out and `shellInfo` over `Request`/`Response`, `ShellSessionStore` + `cookieSessionStore`, config, notifier, settings, directory |
+| `@reflagged/shell/react` | Components (`BrandSwitcher`, `TenantTheme`, `ServiceIcon`, `NotificationBell`, `ImpersonationCapsule`) and `ShellProvider` |
+| `@reflagged/shell/next` | Next middleware and route handlers wrapping the core |
+| `@reflagged/shell/payload` | Payload auth strategy (`createOidcStrategy`, `nextauthStrategy`) |
+| `@reflagged/shell/testing` | Test-only: `sessionStoreConformance` (imports `vitest`) |
+
+The pre-2.0 paths keep working unchanged:
 
 ```ts
 import { BrandSwitcher } from '@reflagged/shell/components/BrandSwitcher'
@@ -319,6 +327,41 @@ if (me.known) await syncMemberships(session.sub, me.groups)
   the enforcement off; the client API keeps working. Apps that read the
   session cookie themselves (no Payload strategy) can call
   `isSessionAccessRevoked(sub)` the same way.
+
+## Outside Next.js (Vite, Hono, Remix)
+
+Give the components their config through `ShellProvider`:
+
+```tsx
+import { BrandSwitcher, ShellProvider } from '@reflagged/shell/react'
+
+<ShellProvider config={{ appKey: 'botspawn', appLabel: 'Botspawn' }}>
+  <BrandSwitcher />
+</ShellProvider>
+```
+
+Serve `/api/shell-info` from any Web-standard server with a store over your
+own session handling:
+
+```ts
+import { Hono } from 'hono'
+import { shellInfo } from '@reflagged/shell/core'
+import type { ShellSessionStore } from '@reflagged/shell/core'
+
+const sessions: ShellSessionStore = {
+  load: async (req) => mySessions.read(req),
+  refresh: async (req, session) => mySessions.refreshTokens(session),
+  save: async (req, session, res) => mySessions.write(session, res),
+  end: async (req, res) => mySessions.clear(res),
+}
+
+const app = new Hono()
+// platformUrl: the platform's base URL, i.e. the OIDC issuer without `/oidc`.
+app.get('/api/shell-info', (c) => shellInfo(c.req.raw, { platformUrl: 'https://platform.example', sessions }))
+```
+
+`sessionStoreConformance` from `@reflagged/shell/testing` checks a store in your
+vitest suite.
 
 ## Releasing
 
