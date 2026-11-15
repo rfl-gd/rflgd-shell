@@ -36,6 +36,30 @@ Configure the app's identity:
   [Outside Next.js](#outside-nextjs-vite-hono-remix)). Without a provider the
   components fall back to the env vars above.
 
+## Changes in 2.0
+
+- **Compiled `dist/`.** The package ships ESM with type declarations instead of
+  TypeScript sources; no `transpilePackages` entry is needed (an existing one is
+  harmless). Every entry also loads under plain Node ESM, e.g. in a consumer's vitest.
+- **New layers.** `./core` (framework-free handlers over `Request`/`Response`),
+  `./react`, `./next`, `./payload` and the test-only `./testing`
+  (`sessionStoreConformance`, needs `vitest`). The pre-2.0 paths keep working.
+- **`/api/shell-info` answers `no-session` for an invalid session cookie too**;
+  1.x answered `invalid-session` there. Clients that told the two apart only need
+  to handle `no-session`.
+- **`RFLGD_SERVER_URL`** is read alongside `NEXT_PUBLIC_SERVER_URL` and wins when
+  both are set (the first non-empty one counts), so non-Next modules need no
+  `NEXT_PUBLIC_` name.
+- **`platformRole` survives a token refresh.** 1.x dropped it from the session
+  cookie when `/api/shell-info` refreshed the access token.
+- **`callbackUrl` is restricted to paths on the app's own origin.** Absolute URLs,
+  `//host`, `/\host` and the like fall back to `/admin`; the callback checks the
+  stored value again. `safeCallbackPath` in `./core` applies the same rule.
+- **The sign-in error page shows the provider's text only for a matching state.**
+  An `error` in the callback URL is shown only when it is a known OAuth code
+  (otherwise `unknown_error`), and `error_description` only when the URL's `state`
+  matches the browser's sign-in; otherwise the page uses its own fixed text.
+
 ## Entry points
 
 | Entry | Contents |
