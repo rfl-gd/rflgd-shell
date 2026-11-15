@@ -1,0 +1,83 @@
+/**
+ * Web-standard response and cookie helpers. They work on plain `Response`
+ * objects so route handlers do not depend on a framework's response type.
+ */
+
+export type CookieAttributes = {
+  httpOnly?: boolean
+  secure?: boolean
+  sameSite?: 'lax' | 'strict' | 'none'
+  path?: string
+  maxAge?: number
+}
+
+export function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  })
+}
+
+export function redirectResponse(url: string | URL, status = 307): Response {
+  // Response.redirect() returns immutable headers; build it by hand so cookies can be added.
+  return new Response(null, { status, headers: { location: url.toString() } })
+}
+
+export function setCookie(res: Response, name: string, value: string, attrs: CookieAttributes): void {
+  const parts = [`${name}=${encodeURIComponent(value)}`]
+  if (attrs.path !== undefined) parts.push(`Path=${attrs.path}`)
+  if (attrs.maxAge !== undefined) parts.push(`Max-Age=${attrs.maxAge}`)
+  if (attrs.httpOnly) parts.push('HttpOnly')
+  if (attrs.secure) parts.push('Secure')
+  if (attrs.sameSite) parts.push(`SameSite=${attrs.sameSite}`)
+  res.headers.append('set-cookie', parts.join('; '))
+}
+
+export function deleteCookie(res: Response, name: string, attrs: Omit<CookieAttributes, 'maxAge'>): void {
+  setCookie(res, name, '', { ...attrs, maxAge: 0 })
+}
+
+/** Returns the raw (still encoded) value of `name` from a `Cookie` request header. */
+export function cookieValue(cookieHeader: string | null, name: string): string | null {
+  if (!cookieHeader) return null
+  const prefix = `${name}=`
+  for (const segment of cookieHeader.split(';')) {
+    const trimmed = segment.trim()
+    if (trimmed.startsWith(prefix)) return trimmed.slice(prefix.length)
+  }
+  return null
+}
+
+/**
+ * Parses a `Set-Cookie` header written by `setCookie` back into its name, decoded value and attributes.
+ * For responses of the core handlers only: it understands the attributes `setCookie` writes and
+ * drops any others, so it is not a general Set-Cookie parser.
+ */
+export function parseSetCookie(header: string): { name: string; value: string; attrs: CookieAttributes } {
+  const [pair, ...parts] = header.split(';').map((part) => part.trim())
+  const splitAt = pair.indexOf('=')
+  const name = pair.slice(0, splitAt)
+  const value = decodeURIComponent(pair.slice(splitAt + 1))
+  const attrs: CookieAttributes = {}
+  for (const part of parts) {
+    const [key, attrValue = ''] = part.split('=')
+    switch (key.toLowerCase()) {
+      case 'path':
+        attrs.path = attrValue
+        break
+      case 'max-age':
+        attrs.maxAge = Number(attrValue)
+        break
+      case 'httponly':
+        attrs.httpOnly = true
+        break
+      case 'secure':
+        attrs.secure = true
+        break
+      case 'samesite':
+        attrs.sameSite = attrValue.toLowerCase() as CookieAttributes['sameSite']
+        break
+    }
+  }
+  return { name, value, attrs }
+}

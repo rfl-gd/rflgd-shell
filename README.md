@@ -8,8 +8,9 @@ Shared app shell for Reflagged services. Provides:
 - `BrandSwitcher` component (app palette: icons, search, ⌘K / Ctrl+K)
 - Admin route SSO enforcement middleware
 
-Published as a **public npm package of raw TS/TSX source**. Consumers transpile
-it in-app via Next's `transpilePackages` — there is no build/bundle step.
+Published as a **public npm package of compiled ESM** (`dist/`, with type
+declarations). Next.js is optional: `./core` and `./react` run in any React app
+or Web-standard server.
 
 ## Install
 
@@ -17,28 +18,59 @@ it in-app via Next's `transpilePackages` — there is no build/bundle step.
 pnpm add @reflagged/shell
 ```
 
-In each consuming Next.js app, add the package to `transpilePackages`
-(**required** — the package ships `.ts/.tsx` source, incl. a `'use client'`
-component, that Next must compile):
+No `transpilePackages` entry is needed any more; an existing one is harmless
+to keep. `next` and `payload` are optional peers, needed only for the `./next`
+and `./payload` entries.
 
-```ts
-// next.config.ts
-const nextConfig = {
-  transpilePackages: ['@reflagged/shell'],
-}
-```
+Configure the app's identity:
 
-Do **not** add it to `serverExternalPackages` — it must be transpiled.
+- **Next.js:** via env vars (`NEXT_PUBLIC_*` are inlined at **build** time):
 
-Configure via env vars (`NEXT_PUBLIC_*` are inlined at **build** time):
+  | Variable | Purpose |
+  |----------|---------|
+  | `NEXT_PUBLIC_RFLGD_APP_KEY` | App key matching the platform catalog `service` value (highlights the current app as "aktuell") |
+  | `NEXT_PUBLIC_RFLGD_APP_LABEL` | Display name in BrandSwitcher |
+  | `RFLGD_DEFAULT_USER_ROLE` | Role for auto-created users (default: `user`) |
 
-| Variable | Purpose |
-|----------|---------|
-| `NEXT_PUBLIC_RFLGD_APP_KEY` | App key matching the platform catalog `service` value (highlights the current app as "aktuell") |
-| `NEXT_PUBLIC_RFLGD_APP_LABEL` | Display name in BrandSwitcher |
-| `RFLGD_DEFAULT_USER_ROLE` | Role for auto-created users (default: `user`) |
+- **Other React apps:** wrap the components in `ShellProvider` (see
+  [Outside Next.js](#outside-nextjs-vite-hono-remix)). Without a provider the
+  components fall back to the env vars above.
+
+## Changes in 2.0
+
+- **Compiled `dist/`.** The package ships ESM with type declarations instead of
+  TypeScript sources; no `transpilePackages` entry is needed (an existing one is
+  harmless). Every entry also loads under plain Node ESM, e.g. in a consumer's vitest.
+- **New layers.** `./core` (framework-free handlers over `Request`/`Response`),
+  `./react`, `./next`, `./payload` and the test-only `./testing`
+  (`sessionStoreConformance`, needs `vitest`). The pre-2.0 paths keep working.
+- **`/api/shell-info` answers `no-session` for an invalid session cookie too**;
+  1.x answered `invalid-session` there. Clients that told the two apart only need
+  to handle `no-session`.
+- **`RFLGD_SERVER_URL`** is read alongside `NEXT_PUBLIC_SERVER_URL` and wins when
+  both are set (the first non-empty one counts), so non-Next modules need no
+  `NEXT_PUBLIC_` name.
+- **`platformRole` survives a token refresh.** 1.x dropped it from the session
+  cookie when `/api/shell-info` refreshed the access token.
+- **`callbackUrl` is restricted to paths on the app's own origin.** Absolute URLs,
+  `//host`, `/\host` and the like fall back to `/admin`; the callback checks the
+  stored value again. `safeCallbackPath` in `./core` applies the same rule.
+- **The sign-in error page shows the provider's text only for a matching state.**
+  An `error` in the callback URL is shown only when it is a known OAuth code
+  (otherwise `unknown_error`), and `error_description` only when the URL's `state`
+  matches the browser's sign-in; otherwise the page uses its own fixed text.
 
 ## Entry points
+
+| Entry | Contents |
+|-------|----------|
+| `@reflagged/shell/core` | Framework-free: OIDC sign-in/callback/sign-out and `shellInfo` over `Request`/`Response`, `ShellSessionStore` + `cookieSessionStore`, config, notifier, settings, directory |
+| `@reflagged/shell/react` | Components (`BrandSwitcher`, `TenantTheme`, `ServiceIcon`, `NotificationBell`, `ImpersonationCapsule`) and `ShellProvider` |
+| `@reflagged/shell/next` | Next middleware and route handlers wrapping the core |
+| `@reflagged/shell/payload` | Payload auth strategy (`createOidcStrategy`, `nextauthStrategy`) |
+| `@reflagged/shell/testing` | Test-only: `sessionStoreConformance` (imports `vitest`) |
+
+The pre-2.0 paths keep working unchanged:
 
 ```ts
 import { BrandSwitcher } from '@reflagged/shell/components/BrandSwitcher'
@@ -76,7 +108,7 @@ export const oidcStrategy = createOidcStrategy({ roleForNewUser })
 
 This callback runs only when an account is created, never on later
 sign-ins — see `NewUserContext`'s doc comments in
-`src/lib/auth/nextauth-strategy.ts` for the full contract, including the
+`src/payload/strategy.ts` for the full contract, including the
 `isFirstUser` branch and the `null` case for standalone operation.
 
 ### Per-app route files + middleware
@@ -320,11 +352,47 @@ if (me.known) await syncMemberships(session.sub, me.groups)
   session cookie themselves (no Payload strategy) can call
   `isSessionAccessRevoked(sub)` the same way.
 
+## Outside Next.js (Vite, Hono, Remix)
+
+Give the components their config through `ShellProvider`:
+
+```tsx
+import { BrandSwitcher, ShellProvider } from '@reflagged/shell/react'
+
+<ShellProvider config={{ appKey: 'botspawn', appLabel: 'Botspawn' }}>
+  <BrandSwitcher />
+</ShellProvider>
+```
+
+Serve `/api/shell-info` from any Web-standard server with a store over your
+own session handling:
+
+```ts
+import { Hono } from 'hono'
+import { shellInfo } from '@reflagged/shell/core'
+import type { ShellSessionStore } from '@reflagged/shell/core'
+
+const sessions: ShellSessionStore = {
+  load: async (req) => mySessions.read(req),
+  refresh: async (req, session) => mySessions.refreshTokens(session),
+  save: async (req, session, res) => mySessions.write(session, res),
+  end: async (req, res) => mySessions.clear(res),
+}
+
+const app = new Hono()
+// platformUrl: the platform's base URL, i.e. the OIDC issuer without `/oidc`.
+app.get('/api/shell-info', (c) => shellInfo(c.req.raw, { platformUrl: 'https://platform.example', sessions }))
+```
+
+`sessionStoreConformance` from `@reflagged/shell/testing` checks a store in your
+vitest suite.
+
 ## Releasing
 
-Bump `version` in `package.json`, commit, tag `vX.Y.Z` and push the tag.
-`publish.yml` puts it on npm; `fan-out.yml` then opens a bump PR in every
-`rfl-gd` repo whose root `package.json` depends on this package and merges it
+Bump `version` in `package.json`, commit, then `git tag vX.Y.Z && git push --tags`.
+`publish.yml` builds `dist/`, typechecks, checks the tag matches `version` and
+puts it on npm (needs the `NPM_TOKEN` repo secret); `fan-out.yml` then opens a
+bump PR in every `rfl-gd` repo whose root `package.json` depends on this package and merges it
 unless the bump breaks a CI job that passes on the repo's default branch (a
 main that is red already does not block it; no CI at all merges, too). Re-run
 a rollout via *Actions → Roll out @reflagged/shell → Run workflow*; it resumes
@@ -392,17 +460,7 @@ the consumer (all Reflagged repos sit side-by-side under `~/Development/`):
 }
 ```
 
-Then `pnpm install`. Edits in `rflgd-shell/src` are picked up live (still
-transpiled via `transpilePackages`). **Remove the override before committing** —
-`link:../rflgd-shell` does not exist in the Coolify build context and would
+Then `pnpm install`. The consumer resolves `exports` to `dist/`, so run
+`pnpm exec tsup --watch` in the shell checkout while live-editing. **Remove the
+override before committing** — `link:../rflgd-shell` does not exist in the Coolify build context and would
 break the build.
-
-## Releasing
-
-Raw source, no build. To publish a new version:
-
-1. Bump `version` in `package.json`.
-2. Commit, then `git tag vX.Y.Z && git push --tags`.
-3. The `.github/workflows/publish.yml` workflow typechecks, verifies the tag
-   matches `version`, and runs `npm publish --access public` (needs the
-   `NPM_TOKEN` repo secret).

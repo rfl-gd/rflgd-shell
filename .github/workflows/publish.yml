@@ -23,10 +23,16 @@ jobs:
           node-version: 22
           registry-url: 'https://registry.npmjs.org'
 
-      # Raw-source package — no build/bundle. Install deps for the typecheck gate.
-      - run: pnpm install --no-frozen-lockfile
+      # Install deps for the build, the typecheck and the test gate.
+      - run: pnpm install --frozen-lockfile
 
-      # Only quality gate: the published source must typecheck.
+      # Compile the ESM distribution in dist/ that npm publish ships.
+      - run: pnpm build
+
+      # Quality gate: the tests pass, including the checks against the built dist/.
+      - run: pnpm test
+
+      # Quality gate: the source must typecheck.
       - run: pnpm typecheck
 
       # Guard: package.json version must match the pushed tag (vX.Y.Z).
