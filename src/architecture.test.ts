@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
  * The core and react layers must run without Next or Payload, so they may not
  * import either. Directories that do not exist yet are skipped.
  */
-const FRAMEWORK_IMPORT = /from ['"](next(\/|'|")|payload|@payloadcms)/
+const FRAMEWORK_IMPORT = /(from|import|require)\s*\(?\s*['"](next(\/|['"])|payload|@payloadcms)/
 
 function sourceFiles(dir: string): string[] {
   if (!existsSync(dir)) return []

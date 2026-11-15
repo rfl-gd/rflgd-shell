@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { cookieValue, deleteCookie, jsonResponse, redirectResponse, setCookie } from './http'
+import { cookieValue, deleteCookie, jsonResponse, parseSetCookie, redirectResponse, setCookie } from './http'
 
 describe('http helpers', () => {
   it('sets a cookie on a redirect response', () => {
@@ -34,5 +34,28 @@ describe('http helpers', () => {
     expect(res.status).toBe(401)
     expect(res.headers.get('content-type')).toContain('application/json')
     expect(await res.json()).toEqual({ error: 'x' })
+  })
+
+  it('parses its own Set-Cookie back into name, value and attributes', () => {
+    const res = jsonResponse({})
+    const value = JSON.stringify({ a: 'b;c', d: '"e",f' })
+    setCookie(res, 's', value, { httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 600 })
+
+    expect(parseSetCookie(res.headers.get('set-cookie')!)).toEqual({
+      name: 's',
+      value,
+      attrs: { httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 600 },
+    })
+  })
+
+  it('parses a deletion with Max-Age=0', () => {
+    const res = jsonResponse({})
+    deleteCookie(res, 'd', { httpOnly: true, sameSite: 'lax', path: '/' })
+
+    expect(parseSetCookie(res.headers.get('set-cookie')!)).toEqual({
+      name: 'd',
+      value: '',
+      attrs: { httpOnly: true, sameSite: 'lax', path: '/', maxAge: 0 },
+    })
   })
 })

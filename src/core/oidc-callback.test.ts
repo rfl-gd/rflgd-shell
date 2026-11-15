@@ -20,6 +20,7 @@ beforeEach(() => {
   vi.stubEnv('OIDC_CLIENT_SECRET', 'secret')
   vi.stubEnv('AUTH_SECRET', 'x'.repeat(32))
   vi.stubEnv('NEXT_PUBLIC_SERVER_URL', 'https://app.example.test')
+  vi.stubEnv('RFLGD_SERVER_URL', '')
   env = loadOidcEnv() as OidcEnv
 })
 

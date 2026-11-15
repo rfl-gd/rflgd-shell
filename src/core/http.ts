@@ -47,3 +47,33 @@ export function cookieValue(cookieHeader: string | null, name: string): string |
   }
   return null
 }
+
+/** Parses a `Set-Cookie` header written by `setCookie` back into its name, decoded value and attributes. */
+export function parseSetCookie(header: string): { name: string; value: string; attrs: CookieAttributes } {
+  const [pair, ...parts] = header.split(';').map((part) => part.trim())
+  const splitAt = pair.indexOf('=')
+  const name = pair.slice(0, splitAt)
+  const value = decodeURIComponent(pair.slice(splitAt + 1))
+  const attrs: CookieAttributes = {}
+  for (const part of parts) {
+    const [key, attrValue = ''] = part.split('=')
+    switch (key.toLowerCase()) {
+      case 'path':
+        attrs.path = attrValue
+        break
+      case 'max-age':
+        attrs.maxAge = Number(attrValue)
+        break
+      case 'httponly':
+        attrs.httpOnly = true
+        break
+      case 'secure':
+        attrs.secure = true
+        break
+      case 'samesite':
+        attrs.sameSite = attrValue.toLowerCase() as CookieAttributes['sameSite']
+        break
+    }
+  }
+  return { name, value, attrs }
+}

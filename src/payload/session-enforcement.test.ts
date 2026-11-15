@@ -57,6 +57,7 @@ beforeEach(() => {
   vi.stubEnv('OIDC_CLIENT_ID', 'crm')
   vi.stubEnv('OIDC_CLIENT_SECRET', 's3cret')
   vi.stubEnv('NEXT_PUBLIC_SERVER_URL', 'https://crm.test')
+  vi.stubEnv('RFLGD_SERVER_URL', '')
   delete (globalThis as Record<symbol, unknown>)[CLIENT_KEY]
 })
 
@@ -116,7 +117,8 @@ describe('sign-in route', () => {
     )
     expect(res.status).toBe(307)
     expect(res.headers.get('location')).toBe('https://base.test/apps?error=no-access')
-    // Asserted on the header: NextResponse's cookie parser drops an empty value and Max-Age=0.
-    expect(res.headers.get('set-cookie')).toMatch(new RegExp(`^${OIDC_COOKIE}=;.*Max-Age=0`))
+    const cleared = res.cookies.get(OIDC_COOKIE)
+    expect(cleared?.value).toBe('')
+    expect(cleared?.maxAge).toBe(0)
   })
 })

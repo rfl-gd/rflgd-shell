@@ -1,14 +1,15 @@
 import { NextResponse } from 'next/server'
 
-import { signedOutPath } from '../../core/auth/oidc-config'
-import { clearSessionCookieOn, oidcSignout } from '../../core/oidc-signout'
+import { OIDC_COOKIE, secureCookies, signedOutPath } from '../../core/auth/oidc-config'
+import { oidcSignout } from '../../core/oidc-signout'
 import { oidcContext, toNextResponse } from '../context'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 export function clearSessionCookie(res: NextResponse): void {
-  clearSessionCookieOn(res)
+  // Through `res.cookies` so a later `res.cookies.set()` keeps the deletion.
+  res.cookies.set(OIDC_COOKIE, '', { httpOnly: true, secure: secureCookies(), sameSite: 'lax', path: '/', maxAge: 0 })
 }
 
 export async function GET(req: Request): Promise<NextResponse> {
