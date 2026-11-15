@@ -1,7 +1,7 @@
 import * as oauth from 'oauth4webapi'
 
 import { OIDC_STATE_COOKIE, secureCookies } from './auth/oidc-config'
-import { deniedPage } from './denied-page'
+import { deniedPage, providerErrorCode } from './denied-page'
 import { cookieValue, deleteCookie, jsonResponse, redirectResponse } from './http'
 import type { OidcContext } from './oidc-signin'
 import { safeCallbackPath } from './safe-callback-path'
@@ -10,6 +10,18 @@ import type { ShellSession } from './session-store'
 function clearStateCookieOn(res: Response): Response {
   deleteCookie(res, OIDC_STATE_COOKIE, { httpOnly: true, secure: secureCookies(), sameSite: 'lax', path: '/' })
   return res
+}
+
+type PkceState = { codeVerifier: string; state: string; nonce: string; callback: string }
+
+function parseStateCookie(value: string | null): PkceState | null {
+  if (value === null) return null
+  try {
+    const parsed: unknown = JSON.parse(decodeURIComponent(value))
+    return parsed !== null && typeof parsed === 'object' ? (parsed as PkceState) : null
+  } catch {
+    return null
+  }
 }
 
 /** Completes the authorization-code flow and saves the session through the session store. */
@@ -22,21 +34,22 @@ export async function oidcCallback(req: Request, ctx: OidcContext): Promise<Resp
   // when it is unwell. validateAuthResponse() throws on these, and an
   // unhandled throw is a 500 that swallows the one sentence the person
   // needs. Answer it before anything else — no state cookie is required to
-  // say "no".
+  // say "no". Anyone can craft such a link, so the code is mapped to a known
+  // one and the provider's sentence is shown only when the URL carries the
+  // state this browser sent.
+  const stateCookie = cookieValue(req.headers.get('cookie'), OIDC_STATE_COOKIE)
+  const pkce = parseStateCookie(stateCookie)
+
   const providerError = url.searchParams.get('error')
   if (providerError) {
-    return clearStateCookieOn(deniedPage(providerError, url.searchParams.get('error_description')))
+    const urlState = url.searchParams.get('state')
+    const stateMatches = typeof pkce?.state === 'string' && pkce.state !== '' && pkce.state === urlState
+    const description = stateMatches ? url.searchParams.get('error_description') : null
+    return clearStateCookieOn(deniedPage(providerErrorCode(providerError), description))
   }
 
-  const stateCookie = cookieValue(req.headers.get('cookie'), OIDC_STATE_COOKIE)
   if (stateCookie === null) return jsonResponse({ error: 'missing-state' }, 400)
-
-  let pkce: { codeVerifier: string; state: string; nonce: string; callback: string }
-  try {
-    pkce = JSON.parse(decodeURIComponent(stateCookie))
-  } catch {
-    return jsonResponse({ error: 'corrupt-state' }, 400)
-  }
+  if (pkce === null) return jsonResponse({ error: 'corrupt-state' }, 400)
 
   const issuerUrl = new URL(env.issuer)
   const as = await oauth.discoveryRequest(issuerUrl, { algorithm: 'oidc' }).then((r) =>

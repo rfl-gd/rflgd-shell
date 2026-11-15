@@ -36,11 +36,13 @@ const callback = (query: string, cookie?: string): Request =>
   })
 
 describe('oidcCallback with a provider error', () => {
-  it('answers access_denied with 403 and the provider\'s own sentence', async () => {
+  const stateCookie = (state: string) => `rflgd-oidc-state=${encodeURIComponent(JSON.stringify({ state }))}`
+
+  it('answers access_denied with 403 and the provider\'s own sentence when the state matches', async () => {
     const res = await run(
       callback(
         'error=access_denied&error_description=Ihr+Account+hat+keinen+Zugriff+auf+diese+Service-Instanz.&state=abc',
-        'rflgd-oidc-state=%7B%7D',
+        stateCookie('abc'),
       ),
     )
 
@@ -65,9 +67,34 @@ describe('oidcCallback with a provider error', () => {
     expect(await res.text()).toContain('server_error')
   })
 
-  it('escapes the description — the URL is anyone\'s to craft', async () => {
+  it('shows unknown_error instead of a code it does not know', async () => {
+    const res = await run(callback(`error=${encodeURIComponent('Call +1 555 0100 for support')}`))
+
+    expect(res.status).toBe(400)
+    const body = await res.text()
+    expect(body).toContain('Der Anmeldedienst hat die Anmeldung abgelehnt (unknown_error).')
+    expect(body).toContain('Fehlercode: unknown_error')
+    expect(body).not.toContain('555')
+  })
+
+  it.each([
+    ['without a state cookie', 'error=access_denied&state=abc&error_description=Call+555', undefined],
+    ['without a state in the URL', 'error=access_denied&error_description=Call+555', stateCookie('abc')],
+    ['with a different state', 'error=access_denied&state=xyz&error_description=Call+555', stateCookie('abc')],
+  ])('shows the fixed text instead of the description %s', async (_, query, cookie) => {
+    const res = await run(callback(query, cookie))
+
+    const body = await res.text()
+    expect(body).not.toContain('555')
+    expect(body).toContain('Ihr Account ist dieser Anwendung nicht zugeordnet.')
+  })
+
+  it('escapes the description', async () => {
     const res = await run(
-      callback(`error=access_denied&error_description=${encodeURIComponent('<script>alert(1)</script>')}`),
+      callback(
+        `error=access_denied&state=abc&error_description=${encodeURIComponent('<script>alert(1)</script>')}`,
+        stateCookie('abc'),
+      ),
     )
 
     const body = await res.text()

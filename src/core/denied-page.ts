@@ -1,11 +1,32 @@
 const escapeHtml = (v: string): string =>
   v.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
 
+const PROVIDER_ERRORS = new Set([
+  'access_denied',
+  'invalid_grant',
+  'login_required',
+  'consent_required',
+  'interaction_required',
+  'server_error',
+  'temporarily_unavailable',
+  'invalid_request',
+  'invalid_scope',
+  'unauthorized_client',
+])
+
+/**
+ * Maps an `error` from the callback URL to a known OAuth error code, or
+ * `unknown_error`: the URL is anyone's to craft, so its code is never shown as is.
+ */
+export function providerErrorCode(raw: string): string {
+  return PROVIDER_ERRORS.has(raw) ? raw : 'unknown_error'
+}
+
 /**
  * A readable page for a sign-in the provider refused. 403 for access_denied
  * (the account exists, the instance is not theirs), 400 for anything else.
- * The description is the provider's own sentence and arrives via the URL,
- * so it is escaped — anyone can craft a callback link.
+ * The description is the provider's own sentence. Callers pass it only when
+ * it can be trusted to come from the provider; it is escaped all the same.
  */
 export function deniedPage(error: string, description: string | null): Response {
   const status = error === 'access_denied' ? 403 : 400
