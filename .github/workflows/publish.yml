@@ -23,11 +23,14 @@ jobs:
           node-version: 22
           registry-url: 'https://registry.npmjs.org'
 
-      # Install deps for the build and the typecheck gate.
-      - run: pnpm install --no-frozen-lockfile
+      # Install deps for the build, the typecheck and the test gate.
+      - run: pnpm install --frozen-lockfile
 
       # Compile the ESM distribution in dist/ that npm publish ships.
       - run: pnpm build
+
+      # Quality gate: the tests pass, including the checks against the built dist/.
+      - run: pnpm test
 
       # Quality gate: the source must typecheck.
       - run: pnpm typecheck
