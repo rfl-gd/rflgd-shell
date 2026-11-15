@@ -6,9 +6,10 @@
 # re-run on a fresh copy with the consumer's current shell (its lockfile) to tell
 # regressions from pre-existing failures.
 #
-# Usage: scripts/verify-consumers.sh [--clean] [consumer ...]
+# Usage: scripts/verify-consumers.sh [--keep] [consumer ...]
 #        Consumers default to scripts/consumers.txt; a workspace app is <root>:<app-subdir>.
-#        --clean removes the consumer copies when the run ends (logs and results stay).
+#        The consumer copies are removed when the run ends (logs and results stay); --keep
+#        keeps them for inspection. --clean is accepted for compatibility and is the default.
 # Env:   DEV_ROOT (default ~/Development), WORK_DIR (default $TMPDIR/shell-consumers),
 #        TARBALL (skip build+pack and use this tarball),
 #        GITHUB_TOKEN (for consumers whose lockfile pulls private packages from GitHub
@@ -30,11 +31,11 @@ LOG_DIR="$WORK_DIR/logs"
 RESULT_DIR="$WORK_DIR/results"
 PRIVATE_REGISTRY="npm.pkg.github.com"
 
-CLEAN=0
-if [[ "${1:-}" == --clean ]]; then
-  CLEAN=1
-  shift
-fi
+CLEAN=1
+case "${1:-}" in
+  --keep) CLEAN=0; shift ;;
+  --clean) shift ;;
+esac
 
 USERCONFIG=""
 cleanup() {
@@ -47,6 +48,8 @@ mkdir -p "$LOG_DIR" "$RESULT_DIR"
 chmod 700 "$WORK_DIR"
 
 token="${GITHUB_TOKEN:-}"
+# From here on the token lives only in $token; no consumer command inherits it by accident.
+unset GITHUB_TOKEN
 if [[ -z "$token" && "${USE_GH_TOKEN:-0}" == 1 ]]; then
   token="$(gh auth token 2>/dev/null || true)"
 fi
