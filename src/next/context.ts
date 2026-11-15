@@ -24,6 +24,8 @@ export function shellInfoContext(): ShellInfoContext | null {
  * rather than raw headers: Next parses raw Set-Cookie headers lossily (an empty
  * value and Max-Age=0 vanish) and rewrites them from that view on the next
  * `cookies.set()`, which would turn a deletion into a session cookie.
+ * For responses of the core handlers only: cookies are re-read with `parseSetCookie`,
+ * which knows just the attributes the core's `setCookie` writes.
  */
 export function toNextResponse(res: Response): NextResponse {
   const headers = new Headers(res.headers)

@@ -48,7 +48,11 @@ export function cookieValue(cookieHeader: string | null, name: string): string |
   return null
 }
 
-/** Parses a `Set-Cookie` header written by `setCookie` back into its name, decoded value and attributes. */
+/**
+ * Parses a `Set-Cookie` header written by `setCookie` back into its name, decoded value and attributes.
+ * For responses of the core handlers only: it understands the attributes `setCookie` writes and
+ * drops any others, so it is not a general Set-Cookie parser.
+ */
 export function parseSetCookie(header: string): { name: string; value: string; attrs: CookieAttributes } {
   const [pair, ...parts] = header.split(';').map((part) => part.trim())
   const splitAt = pair.indexOf('=')
