@@ -1,7 +1,7 @@
 import { renderToString } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BrandSwitcher } from './BrandSwitcher'
-import { ShellProvider, resolveShellConfig } from './shell-config'
+import { ShellProvider, resolveShellConfig, useShellConfig } from './shell-config'
 
 describe('shell config', () => {
   afterEach(() => {
@@ -43,5 +43,18 @@ describe('shell config', () => {
       </ShellProvider>,
     )
     expect(html).toContain('Label X')
+  })
+  it('hands a custom shellInfoUrl from the provider to the components', () => {
+    // No DOM environment is installed, so BrandSwitcher's fetch effect cannot run here;
+    // a probe reads the URL it fetches from the same hook.
+    function Probe() {
+      return <output>{useShellConfig().shellInfoUrl}</output>
+    }
+    const html = renderToString(
+      <ShellProvider config={{ appKey: 'x', appLabel: 'Label X', shellInfoUrl: '/custom/shell-info' }}>
+        <Probe />
+      </ShellProvider>,
+    )
+    expect(html).toBe('<output>/custom/shell-info</output>')
   })
 })
