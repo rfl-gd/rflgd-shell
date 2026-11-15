@@ -14,104 +14,129 @@
   "exports": {
     "./middleware": {
       "types": "./dist/middleware.d.ts",
-      "import": "./dist/middleware.js"
+      "import": "./dist/middleware.js",
+      "default": "./dist/middleware.js"
     },
     "./config": {
       "types": "./dist/config.d.ts",
-      "import": "./dist/config.js"
+      "import": "./dist/config.js",
+      "default": "./dist/config.js"
     },
     "./components/BrandSwitcher": {
       "types": "./dist/components/BrandSwitcher.d.ts",
-      "import": "./dist/components/BrandSwitcher.js"
+      "import": "./dist/components/BrandSwitcher.js",
+      "default": "./dist/components/BrandSwitcher.js"
     },
     "./components/TenantTheme": {
       "types": "./dist/components/TenantTheme.d.ts",
-      "import": "./dist/components/TenantTheme.js"
+      "import": "./dist/components/TenantTheme.js",
+      "default": "./dist/components/TenantTheme.js"
     },
     "./auth/oidc-config": {
       "types": "./dist/auth/oidc-config.d.ts",
-      "import": "./dist/auth/oidc-config.js"
+      "import": "./dist/auth/oidc-config.js",
+      "default": "./dist/auth/oidc-config.js"
     },
     "./auth/oidc-cookie": {
       "types": "./dist/auth/oidc-cookie.d.ts",
-      "import": "./dist/auth/oidc-cookie.js"
+      "import": "./dist/auth/oidc-cookie.js",
+      "default": "./dist/auth/oidc-cookie.js"
     },
     "./auth/can-access": {
       "types": "./dist/auth/can-access.d.ts",
-      "import": "./dist/auth/can-access.js"
+      "import": "./dist/auth/can-access.js",
+      "default": "./dist/auth/can-access.js"
     },
     "./auth/oidc-refresh": {
       "types": "./dist/auth/oidc-refresh.d.ts",
-      "import": "./dist/auth/oidc-refresh.js"
+      "import": "./dist/auth/oidc-refresh.js",
+      "default": "./dist/auth/oidc-refresh.js"
     },
     "./auth/nextauth-strategy": {
       "types": "./dist/auth/nextauth-strategy.d.ts",
-      "import": "./dist/auth/nextauth-strategy.js"
+      "import": "./dist/auth/nextauth-strategy.js",
+      "default": "./dist/auth/nextauth-strategy.js"
     },
     "./api/oidc-signin": {
       "types": "./dist/api/oidc-signin.d.ts",
-      "import": "./dist/api/oidc-signin.js"
+      "import": "./dist/api/oidc-signin.js",
+      "default": "./dist/api/oidc-signin.js"
     },
     "./api/oidc-callback": {
       "types": "./dist/api/oidc-callback.d.ts",
-      "import": "./dist/api/oidc-callback.js"
+      "import": "./dist/api/oidc-callback.js",
+      "default": "./dist/api/oidc-callback.js"
     },
     "./api/oidc-signout": {
       "types": "./dist/api/oidc-signout.d.ts",
-      "import": "./dist/api/oidc-signout.js"
+      "import": "./dist/api/oidc-signout.js",
+      "default": "./dist/api/oidc-signout.js"
     },
     "./api/shell-info": {
       "types": "./dist/api/shell-info.d.ts",
-      "import": "./dist/api/shell-info.js"
+      "import": "./dist/api/shell-info.js",
+      "default": "./dist/api/shell-info.js"
     },
     "./package.json": "./package.json",
     "./components/ServiceIcon": {
       "types": "./dist/components/ServiceIcon.d.ts",
-      "import": "./dist/components/ServiceIcon.js"
+      "import": "./dist/components/ServiceIcon.js",
+      "default": "./dist/components/ServiceIcon.js"
     },
     "./notifications/notifier": {
       "types": "./dist/notifications/notifier.d.ts",
-      "import": "./dist/notifications/notifier.js"
+      "import": "./dist/notifications/notifier.js",
+      "default": "./dist/notifications/notifier.js"
     },
     "./settings": {
       "types": "./dist/settings.d.ts",
-      "import": "./dist/settings.js"
+      "import": "./dist/settings.js",
+      "default": "./dist/settings.js"
     },
     "./directory": {
       "types": "./dist/directory.d.ts",
-      "import": "./dist/directory.js"
+      "import": "./dist/directory.js",
+      "default": "./dist/directory.js"
     },
     "./notifications/blocks": {
       "types": "./dist/notifications/blocks.d.ts",
-      "import": "./dist/notifications/blocks.js"
+      "import": "./dist/notifications/blocks.js",
+      "default": "./dist/notifications/blocks.js"
     },
     "./components/NotificationBell": {
       "types": "./dist/components/NotificationBell.d.ts",
-      "import": "./dist/components/NotificationBell.js"
+      "import": "./dist/components/NotificationBell.js",
+      "default": "./dist/components/NotificationBell.js"
     },
     "./components/ImpersonationCapsule": {
       "types": "./dist/components/ImpersonationCapsule.d.ts",
-      "import": "./dist/components/ImpersonationCapsule.js"
+      "import": "./dist/components/ImpersonationCapsule.js",
+      "default": "./dist/components/ImpersonationCapsule.js"
     },
     "./core": {
       "types": "./dist/core.d.ts",
-      "import": "./dist/core.js"
+      "import": "./dist/core.js",
+      "default": "./dist/core.js"
     },
     "./next": {
       "types": "./dist/next.d.ts",
-      "import": "./dist/next.js"
+      "import": "./dist/next.js",
+      "default": "./dist/next.js"
     },
     "./payload": {
       "types": "./dist/payload.d.ts",
-      "import": "./dist/payload.js"
+      "import": "./dist/payload.js",
+      "default": "./dist/payload.js"
     },
     "./react": {
       "types": "./dist/react.d.ts",
-      "import": "./dist/react.js"
+      "import": "./dist/react.js",
+      "default": "./dist/react.js"
     },
     "./testing": {
       "types": "./dist/testing.d.ts",
-      "import": "./dist/testing.js"
+      "import": "./dist/testing.js",
+      "default": "./dist/testing.js"
     }
   },
   "scripts": {
@@ -126,10 +151,11 @@
   },
   "peerDependencies": {
     "lucide-react": ">=0.400.0",
-    "next": "^15.4.0",
+    "next": "^15.4.0 || ^16.0.0",
     "payload": "^3.79.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "vitest": "^3.2.0"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
@@ -149,6 +175,9 @@
       "optional": true
     },
     "payload": {
+      "optional": true
+    },
+    "vitest": {
       "optional": true
     }
   }
