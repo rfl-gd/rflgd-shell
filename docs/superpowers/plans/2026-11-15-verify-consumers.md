@@ -54,5 +54,7 @@ Not covered: `corporate-memory-langfuse` and `simple-crm` (stale duplicate check
   typecheck failed for reasons unrelated to the shell.
 - Git worktrees nested inside a checkout (other branches checked out in subfolders) are left out
   of the copy; they are not part of the app and drowned its typecheck in their own errors.
-- Private `@rfl-gd` packages come from GitHub Packages. The token is read from `GITHUB_TOKEN` or
-  `gh auth token` and passed to pnpm only through a temporary user config that is removed on exit.
+- Private `@rfl-gd` packages come from GitHub Packages. The token is read from `GITHUB_TOKEN`
+  (or `gh auth token` with `USE_GH_TOKEN=1`) and passed to pnpm only for install commands, through
+  a temporary user config removed on exit. Without a token, consumers whose lockfile needs the
+  private registry are recorded as skipped. This run had a token.
