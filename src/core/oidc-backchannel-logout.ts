@@ -162,9 +162,10 @@ export async function backchannelLogout(req: Request, ctx: BackchannelLogoutCont
 
   // Dated by the token, not by its arrival: a session that signed in again
   // after the platform issued the logout (the push may arrive later) stays,
-  // and a replayed token cannot reach sessions newer than the original. The
-  // end of the issuing second errs towards ending a session (one silent
-  // re-sign-in) rather than keeping one.
+  // and a replayed token cannot reach sessions newer than the original. Both
+  // this and a session's `signedInAt` (its ID token's `iat`) are on the
+  // platform's clock, so the module's clock does not matter. The end of the
+  // issuing second errs towards ending a session (one silent re-sign-in).
   recordLogout(
     {
       sid: typeof claims.sid === 'string' ? claims.sid : null,

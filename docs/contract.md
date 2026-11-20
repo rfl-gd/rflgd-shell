@@ -96,8 +96,8 @@ A token with `sid` ends the sessions of that provider session; one with only
 (end of its `iat` second), not by its arrival: only sessions signed in at or
 before then end, so a sign-in after the platform issued the logout survives a
 late push or a replayed token, even with the same `sid`. The session therefore
-keeps the ID token's `sid` and its sign-in time (`signedInAt`, milliseconds)
-across refreshes. A session minted before 2.2 has no `sid`; it ends with any
+keeps the ID token's `sid` and its `iat` as `signedInAt` (milliseconds) across
+refreshes; both times are on the platform's clock. A session minted before 2.2 has no `sid`; it ends with any
 logout of its person and signs in afresh.
 
 Every session read honours these logouts: `verifySessionCookie` (and with it the

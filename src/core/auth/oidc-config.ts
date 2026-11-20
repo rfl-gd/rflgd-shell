@@ -35,9 +35,11 @@ export type OidcSessionToken = {
    */
   sid?: string | null
   /**
-   * When the module signed this session in (ms since the epoch). Kept across
-   * token refreshes, unlike the cookie's `iat`, so a back-channel logout can
-   * tell an older session from a newer one. Null before shell 2.2.
+   * When the platform issued the ID token of this sign-in (its `iat`, in ms
+   * since the epoch) — the platform's clock, like the logout tokens it is
+   * compared with. Kept across token refreshes, unlike the cookie's `iat`, so
+   * a back-channel logout can tell an older session from a newer one. Null
+   * before shell 2.2.
    */
   signedInAt?: number | null
   iat: number

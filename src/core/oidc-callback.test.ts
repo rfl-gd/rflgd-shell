@@ -260,17 +260,19 @@ describe('oidcCallback on success', () => {
     })
   })
 
-  it("keeps the ID token's sid and the sign-in time in the session", async () => {
-    vi.stubGlobal('fetch', exchanging({ sub: 'u1', email: 'ada@example.test', sid: 'provider-sid' }))
-    const before = Date.now()
+  it("keeps the ID token's sid and its iat (the platform's clock) as the sign-in time", async () => {
+    const issuedAt = Math.floor(Date.now() / 1000) - 7
+    vi.stubGlobal(
+      'fetch',
+      exchanging({ sub: 'u1', email: 'ada@example.test', sid: 'provider-sid', iat: issuedAt }),
+    )
 
     const res = await run(callback(`code=abc&state=${state}`, stateCookie('/')))
 
     const token = sessionCookieValue(res.headers.getSetCookie().map((c) => c.split(';')[0]).join('; '))
     const saved = await verifySessionCookie(env.authSecret, token ?? '')
     expect(saved?.sid).toBe('provider-sid')
-    expect(saved?.signedInAt).toBeGreaterThanOrEqual(before)
-    expect(saved?.signedInAt).toBeLessThanOrEqual(Date.now())
+    expect(saved?.signedInAt).toBe(issuedAt * 1000)
     expect(saved?.accessTokenExpiresAt).toBeGreaterThan(Math.floor(Date.now() / 1000))
   })
 })
