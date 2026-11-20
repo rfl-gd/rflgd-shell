@@ -57,6 +57,18 @@ describe('revocations', () => {
     expect(copy.isSessionRevoked({ sub: 'u', sid: 's-shared', signedInAt: 1_000 })).toBe(true)
   })
 
+  it('a cookie without signedInAt signed after the logout stays valid (an app signing its own cookie)', async () => {
+    recordLogout({ sid: 's-1', sub: 'u-1' }, Date.now() - 60_000)
+    const fresh = await signSessionCookie(SECRET, { sub: 'u-1', email: 'a@x' })
+    expect(await verifySessionCookie(SECRET, fresh)).toMatchObject({ sub: 'u-1', signedInAt: null })
+  })
+
+  it('a cookie without signedInAt signed before the logout is refused', async () => {
+    const old = await signSessionCookie(SECRET, { sub: 'u-1', email: 'a@x' })
+    recordLogout({ sid: 's-1', sub: 'u-1' }, Date.now() + 60_000)
+    expect(await verifySessionCookie(SECRET, old)).toBeNull()
+  })
+
   it('verifySessionCookie refuses a revoked session and accepts a newer one', async () => {
     const older = await signSessionCookie(SECRET, { sub: 'u-1', email: 'a@x', sid: 's-1', signedInAt: 1_000 })
     const newer = await signSessionCookie(SECRET, { sub: 'u-1', email: 'a@x', sid: 's-1', signedInAt: 3_000 })

@@ -62,7 +62,10 @@ export async function verifySessionCookie(
     const sid = typeof payload.sid === 'string' ? payload.sid : null
     const signedInAt = typeof payload.signedInAt === 'number' ? payload.signedInAt : null
     // Every session read goes through here; a session the platform logged out is gone.
-    if (isSessionRevoked({ sub: payload.sub, sid, signedInAt })) return null
+    // Without signedInAt (an app's own callback, or before 2.2) the cookie's own
+    // issue time stands in, so a sign-in after a logout is not taken for an older one.
+    const issuedAt = typeof payload.iat === 'number' ? payload.iat * 1000 : 0
+    if (isSessionRevoked({ sub: payload.sub, sid, signedInAt: signedInAt ?? issuedAt })) return null
     return {
       sub: payload.sub,
       email: payload.email,
