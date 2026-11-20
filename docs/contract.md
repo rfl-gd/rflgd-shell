@@ -98,7 +98,10 @@ before then end, so a sign-in after the platform issued the logout survives a
 late push or a replayed token, even with the same `sid`. The session therefore
 keeps the ID token's `sid` and its `iat` as `signedInAt` (milliseconds) across
 refreshes; both times are on the platform's clock. A session minted before 2.2 has no `sid`; it ends with any
-logout of its person and signs in afresh.
+logout of its person and signs in afresh. A cookie without `signedInAt` (an
+app that signs its own session cookie) is dated by the cookie's own `iat`;
+such apps should still store the ID token's `sid` and `iat` like the shell's
+callback does.
 
 Every session read honours these logouts: `verifySessionCookie` (and with it the
 cookie store and the Payload strategy) returns null for an ended session; a
