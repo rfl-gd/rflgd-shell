@@ -47,18 +47,19 @@ async function logoutToken(
   claims: JWTPayload = {},
   key: KeyLike = signingKey,
   kid = 'k1',
+  typ = 'logout+jwt',
 ): Promise<string> {
   return new SignJWT({
     iss: ISSUER,
     aud: 'module-client',
     sub: 'u-1',
     sid: 'sid-1',
+    jti: `jti-${Math.random()}`,
     events: { [BACKCHANNEL_LOGOUT_EVENT]: {} },
     ...claims,
   })
-    .setProtectedHeader({ alg: 'RS256', kid, typ: 'logout+jwt' })
+    .setProtectedHeader({ alg: 'RS256', kid, typ })
     .setIssuedAt(typeof claims.iat === 'number' ? claims.iat : now())
-    .setJti(`jti-${Math.random()}`)
     .setExpirationTime(now() + 120)
     .sign(key)
 }
@@ -99,6 +100,9 @@ describe('POST /api/oidc/backchannel-logout', () => {
     ['no logout event', async () => postToken(await logoutToken({ events: { other: {} } }))],
     ['a nonce', async () => postToken(await logoutToken({ nonce: 'n' }))],
     ['neither sid nor sub', async () => postToken(await logoutToken({ sid: undefined, sub: undefined }))],
+    ['no jti', async () => postToken(await logoutToken({ jti: '' }))],
+    ['another typ (an ID token)', async () => postToken(await logoutToken({}, signingKey, 'k1', 'JWT'))],
+    ['a body far larger than a token', async () => post(`logout_token=${'a'.repeat(70_000)}`)],
     ['garbage', async () => postToken('not-a-jwt')],
   ])('refuses %s with 400 and ends nothing', async (_, send) => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
@@ -120,6 +124,17 @@ describe('POST /api/oidc/backchannel-logout', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('dates the logout by the token, so a sign-in after it was issued survives a late push or a replay', async () => {
+    const issuedAt = now() - 30
+    const token = await logoutToken({ iat: issuedAt })
+    const signedInAfter = (issuedAt + 2) * 1000
+    const signedInBefore = (issuedAt - 2) * 1000
+    expect((await postToken(token)).status).toBe(200)
+    expect((await postToken(token)).status).toBe(200) // replay
+    expect(isSessionRevoked({ sub: 'u-1', sid: 'sid-1', signedInAt: signedInAfter })).toBe(false)
+    expect(isSessionRevoked({ sub: 'u-1', sid: 'sid-1', signedInAt: signedInBefore })).toBe(true)
   })
 
   it('answers 405 to anything but POST', async () => {

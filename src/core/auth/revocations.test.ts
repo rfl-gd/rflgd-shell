@@ -31,6 +31,12 @@ describe('revocations', () => {
     expect(isSessionRevoked({ sub: 'u-2', sid: 's-9', signedInAt: 1_000 })).toBe(false)
   })
 
+  it('a session minted before 2.2 (no sid) ends with any logout of its person', () => {
+    recordLogout({ sid: 's-1', sub: 'u-1' }, 2_000)
+    expect(isSessionRevoked({ sub: 'u-1', sid: null, signedInAt: null })).toBe(true)
+    expect(isSessionRevoked({ sub: 'u-2', sid: null, signedInAt: null })).toBe(false)
+  })
+
   it('a session without signedInAt counts as signed in at 0', () => {
     recordLogout({ sub: 'u-1' }, 2_000)
     expect(isSessionRevoked({ sub: 'u-1' })).toBe(true)

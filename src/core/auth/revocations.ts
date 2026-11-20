@@ -15,20 +15,24 @@ import { OIDC_SESSION_TTL } from './oidc-config'
  * missed entry ends the session at the module's next call to the platform.
  */
 
-type Registry = { sids: Map<string, number>; subs: Map<string, number> }
+/**
+ * `legacySubs`: the person behind each `sid` logout, for sessions minted
+ * before shell 2.2, which carry no `sid` and could not be matched otherwise.
+ */
+type Registry = { sids: Map<string, number>; subs: Map<string, number>; legacySubs: Map<string, number> }
 
 const KEY = Symbol.for('rflgd.shell.revocations')
 const TTL_MS = OIDC_SESSION_TTL * 1000
 
 function registry(): Registry {
   const holder = globalThis as { [KEY]?: Registry }
-  holder[KEY] ??= { sids: new Map(), subs: new Map() }
+  holder[KEY] ??= { sids: new Map(), subs: new Map(), legacySubs: new Map() }
   return holder[KEY]
 }
 
 function prune(now: number): void {
-  const { sids, subs } = registry()
-  for (const entries of [sids, subs]) {
+  const { sids, subs, legacySubs } = registry()
+  for (const entries of [sids, subs, legacySubs]) {
     for (const [key, at] of entries) if (now - at > TTL_MS) entries.delete(key)
   }
 }
@@ -39,22 +43,30 @@ function prune(now: number): void {
  */
 export function recordLogout(target: { sid?: string | null; sub?: string | null }, at: number = Date.now()): void {
   prune(at)
-  const { sids, subs } = registry()
-  if (target.sid) sids.set(target.sid, Math.max(at, sids.get(target.sid) ?? 0))
-  else if (target.sub) subs.set(target.sub, Math.max(at, subs.get(target.sub) ?? 0))
+  const { sids, subs, legacySubs } = registry()
+  const later = (entries: Map<string, number>, key: string) => entries.set(key, Math.max(at, entries.get(key) ?? 0))
+  if (target.sid) {
+    later(sids, target.sid)
+    if (target.sub) later(legacySubs, target.sub)
+  } else if (target.sub) {
+    later(subs, target.sub)
+  }
 }
 
 /** True when the platform logged this session out after it was signed in. */
 export function isSessionRevoked(session: { sub: string; sid?: string | null; signedInAt?: number | null }): boolean {
-  const { sids, subs } = registry()
+  const { sids, subs, legacySubs } = registry()
   const signedInAt = session.signedInAt ?? 0
-  const bySid = session.sid ? sids.get(session.sid) : undefined
+  // A session without `sid` (minted before 2.2) ends with any logout of its person.
+  const bySid = session.sid ? sids.get(session.sid) : legacySubs.get(session.sub)
   const bySub = subs.get(session.sub)
   return (bySid !== undefined && bySid >= signedInAt) || (bySub !== undefined && bySub >= signedInAt)
 }
 
 /** Forgets every recorded logout. For tests. */
 export function clearRevocations(): void {
-  registry().sids.clear()
-  registry().subs.clear()
+  const { sids, subs, legacySubs } = registry()
+  sids.clear()
+  subs.clear()
+  legacySubs.clear()
 }
