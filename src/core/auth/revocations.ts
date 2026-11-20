@@ -39,10 +39,11 @@ function prune(now: number): void {
 
 /**
  * Records a logout of the provider session `sid`, or of every session of `sub`
- * when the token names no session. `at` is milliseconds since the epoch.
+ * when the token names no session. `at` is milliseconds since the epoch on the
+ * platform's clock (from the logout token), like a session's `signedInAt`.
  */
 export function recordLogout(target: { sid?: string | null; sub?: string | null }, at: number = Date.now()): void {
-  prune(at)
+  prune(Date.now())
   const { sids, subs, legacySubs } = registry()
   const later = (entries: Map<string, number>, key: string) => entries.set(key, Math.max(at, entries.get(key) ?? 0))
   if (target.sid) {

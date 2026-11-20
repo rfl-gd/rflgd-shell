@@ -43,8 +43,9 @@ describe('revocations', () => {
   })
 
   it('forgets logouts older than the session lifetime', () => {
-    recordLogout({ sid: 's-old' }, 1_000)
-    recordLogout({ sid: 's-new' }, 1_000 + OIDC_SESSION_TTL * 1000 + 1)
+    const now = Date.now()
+    recordLogout({ sid: 's-old' }, now - OIDC_SESSION_TTL * 1000 - 1)
+    recordLogout({ sid: 's-new' }, now)
     expect(isSessionRevoked({ sub: 'u', sid: 's-old', signedInAt: 0 })).toBe(false)
     expect(isSessionRevoked({ sub: 'u', sid: 's-new', signedInAt: 0 })).toBe(true)
   })
