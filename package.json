@@ -1,6 +1,6 @@
 {
   "name": "@reflagged/shell",
-  "version": "2.1.2",
+  "version": "2.2.0",
   "description": "Shared app shell for Reflagged services — OIDC auth, SSO, app switcher",
   "type": "module",
   "sideEffects": false,
@@ -76,6 +76,11 @@
       "types": "./dist/api/shell-info.d.ts",
       "import": "./dist/api/shell-info.js",
       "default": "./dist/api/shell-info.js"
+    },
+    "./api/oidc-backchannel-logout": {
+      "types": "./dist/api/oidc-backchannel-logout.d.ts",
+      "import": "./dist/api/oidc-backchannel-logout.js",
+      "default": "./dist/api/oidc-backchannel-logout.js"
     },
     "./package.json": "./package.json",
     "./components/ServiceIcon": {

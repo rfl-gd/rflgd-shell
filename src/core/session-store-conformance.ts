@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { clearRevocations, recordLogout } from './auth/revocations'
 import { jsonResponse } from './http'
 import type { MemorySessionStore } from './memory-session-store'
 import type { ShellSession, ShellSessionStore } from './session-store'
@@ -42,6 +43,16 @@ export function sessionStoreConformance(
         expect(store.saved.at(-1)?.accessToken).toBe('saved')
       } else {
         expect((await store.load(followUpRequest(req, res)))?.accessToken).toBe('saved')
+      }
+    })
+
+    it('load refuses a session the platform logged out after it was signed in', async () => {
+      const { store, req, session } = make()
+      recordLogout({ sub: session.sub })
+      try {
+        expect(await store.load(req)).toBeNull()
+      } finally {
+        clearRevocations()
       }
     })
 

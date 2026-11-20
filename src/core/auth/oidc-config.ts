@@ -29,6 +29,17 @@ export type OidcSessionToken = {
   platformRole?: string | null
   /** Product keys the user may access; ['*'] = all, [] = none. */
   accessibleServices?: string[] | null
+  /**
+   * The provider session behind this sign-in (the ID token's `sid`), which a
+   * back-channel logout names. Null for sessions minted before shell 2.2.
+   */
+  sid?: string | null
+  /**
+   * When the module signed this session in (ms since the epoch). Kept across
+   * token refreshes, unlike the cookie's `iat`, so a back-channel logout can
+   * tell an older session from a newer one. Null before shell 2.2.
+   */
+  signedInAt?: number | null
   iat: number
   exp: number
 }

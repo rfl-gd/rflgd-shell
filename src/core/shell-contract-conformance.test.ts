@@ -3,6 +3,7 @@ import { afterEach, beforeEach, vi } from 'vitest'
 import type { OidcEnv } from './auth/oidc-config'
 import { loadOidcEnv } from './auth/oidc-config'
 import { memorySessionStore } from './memory-session-store'
+import { backchannelLogout } from './oidc-backchannel-logout'
 import { oidcSignin } from './oidc-signin'
 import { oidcSignout } from './oidc-signout'
 import { shellInfo } from './shell-info'
@@ -43,6 +44,8 @@ async function handle(req: Request): Promise<Response> {
       return oidcSignin(req, { env, sessions })
     case '/api/oidc/signout':
       return oidcSignout(req, { env, sessions })
+    case '/api/oidc/backchannel-logout':
+      return backchannelLogout(req, { env })
     default:
       return new Response(null, { status: 404 })
   }

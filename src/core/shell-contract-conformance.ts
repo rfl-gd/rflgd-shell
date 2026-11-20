@@ -11,8 +11,8 @@ const isRedirect = (res: Response) => res.status >= 300 && res.status < 400
 
 /**
  * The observable part of the reFlagged Shell Contract (docs/contract.md) for a
- * visitor without a session: `/api/shell-info`, `/api/oidc/signin` and
- * `/api/oidc/signout` at their fixed paths. Any network the routes need (the
+ * visitor without a session: `/api/shell-info`, `/api/oidc/signin`,
+ * `/api/oidc/signout` and `/api/oidc/backchannel-logout` at their fixed paths. Any network the routes need (the
  * identity provider's discovery document) is the caller's to stub.
  */
 export function describeShellContract({ handle, origin }: ShellContractTarget): void {
@@ -50,6 +50,18 @@ export function describeShellContract({ handle, origin }: ShellContractTarget): 
       const res = await get(`/api/oidc/signin?callbackUrl=${encodeURIComponent(external)}`)
       expect(res.status).toBeLessThan(500)
       expect(res.headers.get('location') ?? '').not.toMatch(/^https:\/\/elsewhere\.invalid/)
+    })
+
+    it('POST /api/oidc/backchannel-logout without a logout token answers 400 without a session', async () => {
+      const res = await handle(
+        new Request(`${base}/api/oidc/backchannel-logout`, {
+          method: 'POST',
+          redirect: 'manual',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body: '',
+        }),
+      )
+      expect(res.status).toBe(400)
     })
 
     it('GET /api/oidc/signout redirects', async () => {

@@ -1,3 +1,4 @@
+import { isSessionRevoked } from './auth/revocations'
 import type { ShellSession, ShellSessionStore } from './session-store'
 
 export type MemorySessionStore = ShellSessionStore & { saved: ShellSession[]; ended: number }
@@ -14,7 +15,7 @@ export function memorySessionStore(options: {
     saved: [],
     ended: 0,
     async load() {
-      return options.session
+      return options.session && !isSessionRevoked(options.session) ? options.session : null
     },
     async refresh(_req, session) {
       if (!session.refreshToken) return null

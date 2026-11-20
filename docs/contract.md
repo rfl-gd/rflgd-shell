@@ -70,6 +70,43 @@ page must exist, and the app clears its own client state
 there (local storage, caches, in-memory stores), because the shell cannot know
 it.
 
+### `POST /api/oidc/backchannel-logout`
+
+The platform ends sessions of this app (OpenID Connect Back-Channel Logout 1.0):
+when "Einloggen als" starts or ends, on logout at the platform, when a booking
+ends or a person loses access. Form body `logout_token=<JWT>`.
+
+| Case | Status | Body |
+|------|--------|------|
+| Valid logout token | 200 | empty, `Cache-Control: no-store` |
+| Missing or invalid token | 400 | `{"error":"invalid_request"}` |
+| Issuer cannot be discovered | 503 | `{"error":"temporarily_unavailable"}` |
+| Any method but `POST` | 405 | `{"error":"method_not_allowed"}` |
+| Shell not configured (Next route only) | 503 | `{"error":"oidc-not-configured"}` |
+
+Validation (§2.6): signature against the issuer's JWKS (from discovery, fetched
+again for an unknown key at most once a minute), `iss` = issuer, `aud` contains
+the app's client id, `iat` within ±300 s, `events` holds
+`http://schemas.openid.net/event/backchannel-logout`, `sid` or `sub` present,
+no `nonce`.
+
+A token with `sid` ends the sessions of that provider session; one with only
+`sub` ends every session of that person. Only sessions signed in at or before
+the logout end; a later sign-in stays valid, even with the same `sid`. The
+session therefore keeps the ID token's `sid` and its sign-in time
+(`signedInAt`, milliseconds) across refreshes.
+
+Every session read honours these logouts: `verifySessionCookie` (and with it the
+cookie store and the Payload strategy) returns null for an ended session; a
+custom `ShellSessionStore` calls `isSessionRevoked(session)` in `load`. The
+record lives in the process's memory: the platform revokes the session's
+tokens as well, so after a restart the session ends at the next `shell-info`.
+
+The route must be reachable without a session: middleware and auth gates leave
+`/api/oidc/*` alone. The app declares the path in its `rflgd.json` as
+`"oidcBackchannelLogoutPath": "/api/oidc/backchannel-logout"`; the platform
+registers it with the app's OIDC client when the app is provisioned or updated.
+
 ## Dark mode
 
 A `.dark` class on an ancestor switches the shell components to their dark
