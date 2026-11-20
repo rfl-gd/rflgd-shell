@@ -60,12 +60,18 @@ export async function verifySessionCookie(
     const { payload } = await jwtVerify(token, secretKey(authSecret), { algorithms: [ALG] })
     if (typeof payload.sub !== 'string' || typeof payload.email !== 'string') return null
     const sid = typeof payload.sid === 'string' ? payload.sid : null
-    const signedInAt = typeof payload.signedInAt === 'number' ? payload.signedInAt : null
+    // Without signedInAt (an app's own callback, or before 2.2) the cookie's
+    // own issue time stands in, so a sign-in after a logout is not taken for an
+    // older one. It is returned as signedInAt, so the next save pins it and a
+    // refresh (which re-signs the cookie) cannot move it forward.
+    const signedInAt =
+      typeof payload.signedInAt === 'number'
+        ? payload.signedInAt
+        : typeof payload.iat === 'number'
+          ? payload.iat * 1000
+          : 0
     // Every session read goes through here; a session the platform logged out is gone.
-    // Without signedInAt (an app's own callback, or before 2.2) the cookie's own
-    // issue time stands in, so a sign-in after a logout is not taken for an older one.
-    const issuedAt = typeof payload.iat === 'number' ? payload.iat * 1000 : 0
-    if (isSessionRevoked({ sub: payload.sub, sid, signedInAt: signedInAt ?? issuedAt })) return null
+    if (isSessionRevoked({ sub: payload.sub, sid, signedInAt })) return null
     return {
       sub: payload.sub,
       email: payload.email,

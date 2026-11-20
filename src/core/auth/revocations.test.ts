@@ -60,7 +60,24 @@ describe('revocations', () => {
   it('a cookie without signedInAt signed after the logout stays valid (an app signing its own cookie)', async () => {
     recordLogout({ sid: 's-1', sub: 'u-1' }, Date.now() - 60_000)
     const fresh = await signSessionCookie(SECRET, { sub: 'u-1', email: 'a@x' })
-    expect(await verifySessionCookie(SECRET, fresh)).toMatchObject({ sub: 'u-1', signedInAt: null })
+    const loaded = await verifySessionCookie(SECRET, fresh)
+    expect(loaded?.sub).toBe('u-1')
+    expect(loaded?.signedInAt).toBeGreaterThan(Date.now() - 60_000)
+  })
+
+  it('a refresh cannot move the stand-in sign-in time of such a cookie past a logout', async () => {
+    vi.useFakeTimers({ now: 1_800_000_000_000, toFake: ['Date'] })
+    try {
+      const original = await signSessionCookie(SECRET, { sub: 'u-9', email: 'a@x' })
+      const loaded = await verifySessionCookie(SECRET, original)
+      vi.setSystemTime(1_800_000_100_000)
+      recordLogout({ sid: 's-x', sub: 'u-9' }, 1_800_000_050_000)
+      // What a store's save does after a refresh: re-sign the loaded session.
+      const resaved = await signSessionCookie(SECRET, { ...(loaded as object), sub: 'u-9', email: 'a@x' })
+      expect(await verifySessionCookie(SECRET, resaved)).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('a cookie without signedInAt signed before the logout is refused', async () => {
