@@ -33,6 +33,8 @@ const session: ShellSession = {
   orgRole: 'member',
   platformRole: 'member',
   accessibleServices: ['*'],
+  sid: 'sid-1',
+  signedInAt: 1_700_000_000_000,
 }
 
 const req = new Request('https://app.example.test/api/shell-info', {
@@ -50,6 +52,14 @@ describe('cookieSessionStore', () => {
   it('refresh keeps every membership claim', async () => {
     const s = await store.refresh(req, { ...session, refreshToken: 'r1' })
     expect(s).toMatchObject({ accessToken: 'new', orgSlug: 'acme', accessibleServices: ['*'] })
+  })
+
+  it('a refreshed session keeps its sid and sign-in time through save and load', async () => {
+    const refreshed = await store.refresh(req, { ...session, refreshToken: 'r1' })
+    const res = await store.save(req, refreshed as ShellSession, jsonResponse({}))
+    const cookie = res.headers.getSetCookie()[0]?.split(';')[0] ?? ''
+    const loaded = await store.load(new Request('https://app.example.test/', { headers: { cookie } }))
+    expect(loaded).toMatchObject({ accessToken: 'new', sid: 'sid-1', signedInAt: 1_700_000_000_000 })
   })
 
   it('save sets the session cookie with the login attributes', async () => {

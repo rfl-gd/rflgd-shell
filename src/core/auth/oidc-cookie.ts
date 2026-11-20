@@ -1,6 +1,7 @@
 import { SignJWT, jwtVerify } from 'jose'
 import type { OidcSessionToken } from './oidc-config'
 import { OIDC_COOKIE, OIDC_SESSION_TTL } from './oidc-config'
+import { isSessionRevoked } from './revocations'
 
 const ALG = 'HS256'
 
@@ -24,6 +25,8 @@ export async function signSessionCookie(
     orgRole?: string | null
     platformRole?: string | null
     accessibleServices?: string[] | null
+    sid?: string | null
+    signedInAt?: number | null
   },
 ): Promise<string> {
   return new SignJWT({
@@ -39,6 +42,8 @@ export async function signSessionCookie(
     orgRole: payload.orgRole ?? null,
     platformRole: payload.platformRole ?? null,
     accessibleServices: payload.accessibleServices ?? null,
+    sid: payload.sid ?? null,
+    signedInAt: payload.signedInAt ?? null,
   })
     .setProtectedHeader({ alg: ALG })
     .setIssuedAt()
@@ -54,6 +59,10 @@ export async function verifySessionCookie(
   try {
     const { payload } = await jwtVerify(token, secretKey(authSecret), { algorithms: [ALG] })
     if (typeof payload.sub !== 'string' || typeof payload.email !== 'string') return null
+    const sid = typeof payload.sid === 'string' ? payload.sid : null
+    const signedInAt = typeof payload.signedInAt === 'number' ? payload.signedInAt : null
+    // Every session read goes through here; a session the platform logged out is gone.
+    if (isSessionRevoked({ sub: payload.sub, sid, signedInAt })) return null
     return {
       sub: payload.sub,
       email: payload.email,
@@ -71,6 +80,8 @@ export async function verifySessionCookie(
       accessibleServices: Array.isArray(payload.accessibleServices)
         ? (payload.accessibleServices as unknown[]).filter((s): s is string => typeof s === 'string')
         : null,
+      sid,
+      signedInAt,
       iat: payload.iat ?? 0,
       exp: payload.exp ?? 0,
     }

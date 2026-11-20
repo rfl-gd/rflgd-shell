@@ -21,6 +21,7 @@ const legacyPaths = [
   'api/oidc-callback',
   'api/oidc-signout',
   'api/shell-info',
+  'api/oidc-backchannel-logout',
   'notifications/notifier',
   'notifications/blocks',
   'settings',

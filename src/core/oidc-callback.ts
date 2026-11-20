@@ -113,6 +113,8 @@ export async function oidcCallback(req: Request, ctx: OidcContext): Promise<Resp
     orgRole: asString(claims.org_role),
     platformRole: asString(claims.platform_role),
     accessibleServices,
+    sid: asString(claims.sid),
+    signedInAt: Date.now(),
   }
 
   // Checked again here: the state cookie is the browser's to change.

@@ -39,6 +39,27 @@ Configure the app's identity:
   [Outside Next.js](#outside-nextjs-vite-hono-remix)). Without a provider the
   components fall back to the env vars above.
 
+## Changes in 2.2
+
+- **Back-channel logout.** The platform ends a module's sessions when
+  "Einloggen als" starts or ends, on logout, when a booking ends or a person
+  loses access (OpenID Connect Back-Channel Logout). Each app adds one route
+  file and one `rflgd.json` field:
+
+  ```ts
+  // src/app/api/oidc/backchannel-logout/route.ts
+  export { POST, dynamic, runtime } from '@reflagged/shell/api/oidc-backchannel-logout'
+  ```
+
+  ```json
+  "oidcBackchannelLogoutPath": "/api/oidc/backchannel-logout"
+  ```
+
+  The route must not sit behind the app's own auth gate. Sessions now keep the
+  ID token's `sid` and their sign-in time; `verifySessionCookie` returns null
+  for a session the platform logged out. Custom session stores call
+  `isSessionRevoked(session)`. Details in [the contract](docs/contract.md).
+
 ## Changes in 2.1
 
 - **Dark mode.** `BrandSwitcher` (trigger, palette, plates) and the
@@ -138,7 +159,8 @@ export { default, config } from '@reflagged/shell/middleware'
 ```
 
 Other API re-exports: `@reflagged/shell/api/oidc-callback`,
-`@reflagged/shell/api/oidc-signout`, `@reflagged/shell/api/shell-info`.
+`@reflagged/shell/api/oidc-signout`, `@reflagged/shell/api/shell-info`,
+`@reflagged/shell/api/oidc-backchannel-logout` (`POST`).
 
 ### Notifications (`createNotifier`, `NotificationBell`)
 
@@ -383,11 +405,15 @@ own session handling:
 
 ```ts
 import { Hono } from 'hono'
-import { shellInfo } from '@reflagged/shell/core'
+import { backchannelLogout, isSessionRevoked, loadOidcEnv, shellInfo } from '@reflagged/shell/core'
 import type { ShellSessionStore } from '@reflagged/shell/core'
 
 const sessions: ShellSessionStore = {
-  load: async (req) => mySessions.read(req),
+  // A session the platform logged out (back-channel logout) must not load.
+  load: async (req) => {
+    const session = await mySessions.read(req)
+    return session && !isSessionRevoked(session) ? session : null
+  },
   refresh: async (req, session) => mySessions.refreshTokens(session),
   save: async (req, session, res) => mySessions.write(session, res),
   end: async (req, res) => mySessions.clear(res),
@@ -396,6 +422,7 @@ const sessions: ShellSessionStore = {
 const app = new Hono()
 // platformUrl: the platform's base URL, i.e. the OIDC issuer without `/oidc`.
 app.get('/api/shell-info', (c) => shellInfo(c.req.raw, { platformUrl: 'https://platform.example', sessions }))
+app.post('/api/oidc/backchannel-logout', (c) => backchannelLogout(c.req.raw, { env: loadOidcEnv()! }))
 ```
 
 `sessionStoreConformance` from `@reflagged/shell/testing` checks a store in your
