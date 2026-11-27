@@ -25,6 +25,8 @@ const legacyPaths = [
   'notifications/notifier',
   'notifications/blocks',
   'settings',
+  'secrets',
+  'secrets.browser',
   'directory',
 ]
 

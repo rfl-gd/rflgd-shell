@@ -1,6 +1,6 @@
 {
   "name": "@reflagged/shell",
-  "version": "2.2.4",
+  "version": "2.3.0",
   "description": "Shared app shell for Reflagged services — OIDC auth, SSO, app switcher",
   "type": "module",
   "sideEffects": false,
@@ -97,6 +97,13 @@
       "types": "./dist/settings.d.ts",
       "import": "./dist/settings.js",
       "default": "./dist/settings.js"
+    },
+    "./secrets": {
+      "types": "./dist/secrets.d.ts",
+      "react-server": "./dist/secrets.js",
+      "browser": "./dist/secrets.browser.js",
+      "import": "./dist/secrets.js",
+      "default": "./dist/secrets.js"
     },
     "./directory": {
       "types": "./dist/directory.d.ts",
