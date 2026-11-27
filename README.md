@@ -331,6 +331,32 @@ const hidden = !settings.peek('documents.enabled', true)
   the manifest default. After an outage the last good values stay in use.
 - Enforce switches on the server (API, access, jobs), not only in the UI.
 
+### Module secrets (`createModuleSecrets`, since 2.3.0)
+
+Credentials of a module's integrations (API tokens, passwords) are settings of
+type `secret` in the manifest. Admins set them in the base (write-only, stored
+encrypted); the module fetches them server-to-server:
+
+```ts
+import { createModuleSecrets, ModuleSecretError } from '@reflagged/shell/settings'
+
+// Once per process; server-only (throws in a browser).
+export const secrets = createModuleSecrets<'lexware.api-token'>()
+
+const token = await secrets.require('lexware.api-token') // throws when not set
+const maybe = await secrets.get('lexware.api-token') // string | null
+```
+
+- Same OIDC client and scope (`settings:read`) as the settings, separate
+  endpoint `GET /api/modules/settings/secrets`. The base derives tenant and
+  module from the token, so a module only ever gets its own secrets.
+- Cached for 60 s (`ttlMs`); the last good values survive outages;
+  `secrets.refresh()` reloads now (e.g. after the third-party API answered 401).
+- `ModuleSecretError.code`: `missing` (not set — tell the user to add it under
+  Einstellungen → Module), `unavailable` (base not reachable, nothing cached),
+  `unconfigured` (OIDC env missing), `browser`. Messages name the key, never the value.
+- Never log a secret, never send it to the browser.
+
 ### Groups, roles and access (`@reflagged/shell/directory`, since 1.11.0)
 
 The base keeps a tenant's groups (manual or mirrored from Microsoft Entra) and
