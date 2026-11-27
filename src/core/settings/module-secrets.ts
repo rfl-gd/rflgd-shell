@@ -3,7 +3,7 @@
  * credentials of its integrations) stored encrypted in the base.
  *
  * Fetched from `/api/modules/settings/secrets` with the module's own
- * client_credentials token, so the base answers only with this module's
+ * client_credentials token (scope `settings:secrets`), so the base answers only with this module's
  * secrets for its own tenant. Values are cached in memory and never logged;
  * errors name the key, never a value.
  *
@@ -14,7 +14,13 @@
  */
 import { createClientCredentials, resolveClientCredentials } from '../auth/client-credentials'
 
-export type ModuleSecretErrorCode = 'missing' | 'unavailable' | 'unconfigured' | 'browser'
+export type ModuleSecretErrorCode =
+  | 'missing'
+  | 'unavailable'
+  /** The base cannot decrypt (platform key missing or changed); the admin must act. */
+  | 'unreadable'
+  | 'unconfigured'
+  | 'browser'
 
 export class ModuleSecretError extends Error {
   constructor(
@@ -53,7 +59,7 @@ type Options = {
   retryAfterMs?: number
 }
 
-const SCOPE = 'settings:read'
+const SCOPE = 'settings:secrets'
 
 export function createModuleSecrets<K extends string = string>(
   options: Options = {},
@@ -75,6 +81,8 @@ export function createModuleSecrets<K extends string = string>(
   const credentials = config ? createClientCredentials(config, SCOPE, timedFetch) : null
 
   let values: Record<string, string> | null = null
+  /** The base's error code of the last failed load (e.g. `secret-key-missing`). */
+  let lastError: string | null = null
   let loadedAt = 0
   let retryAt = 0
   let inFlight: Promise<void> | null = null
@@ -96,8 +104,12 @@ export function createModuleSecrets<K extends string = string>(
       const body = (await res.json().catch(() => null)) as {
         success?: boolean
         data?: { values?: Record<string, unknown> }
+        error?: { code?: string }
       } | null
       if (!res.ok || !body?.success || !body.data?.values) {
+        // Any failure keeps the last good values: a 500 for a missing or
+        // changed platform key must not read as "all secrets removed".
+        lastError = body?.error?.code ?? `http-${res.status}`
         retryAt = Date.now() + retryAfterMs
         return
       }
@@ -106,9 +118,11 @@ export function createModuleSecrets<K extends string = string>(
           (entry): entry is [string, string] => typeof entry[1] === 'string',
         ),
       )
+      lastError = null
       loadedAt = Date.now()
     } catch {
       // Unreachable base: keep the last good values and back off.
+      lastError = 'unreachable'
       retryAt = Date.now() + retryAfterMs
     }
   }
@@ -132,6 +146,13 @@ export function createModuleSecrets<K extends string = string>(
     }
     if (isStale()) await refresh()
     if (values === null) {
+      if (lastError === 'secret-key-missing' || lastError === 'secret-undecryptable') {
+        throw new ModuleSecretError(
+          'unreadable',
+          key,
+          `module secret "${key}": the platform cannot decrypt it (${lastError}) — an admin must fix the platform key or set the secret again`,
+        )
+      }
       throw new ModuleSecretError(
         'unavailable',
         key,

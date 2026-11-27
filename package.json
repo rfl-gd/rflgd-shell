@@ -98,6 +98,13 @@
       "import": "./dist/settings.js",
       "default": "./dist/settings.js"
     },
+    "./secrets": {
+      "types": "./dist/secrets.d.ts",
+      "react-server": "./dist/secrets.js",
+      "browser": "./dist/secrets.browser.js",
+      "import": "./dist/secrets.js",
+      "default": "./dist/secrets.js"
+    },
     "./directory": {
       "types": "./dist/directory.d.ts",
       "import": "./dist/directory.js",

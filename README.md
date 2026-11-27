@@ -338,22 +338,28 @@ type `secret` in the manifest. Admins set them in the base (write-only, stored
 encrypted); the module fetches them server-to-server:
 
 ```ts
-import { createModuleSecrets, ModuleSecretError } from '@reflagged/shell/settings'
+import { createModuleSecrets, ModuleSecretError } from '@reflagged/shell/secrets'
 
-// Once per process; server-only (throws in a browser).
+// Once per process. Server-only entry: a client bundle importing it fails at once.
 export const secrets = createModuleSecrets<'lexware.api-token'>()
 
 const token = await secrets.require('lexware.api-token') // throws when not set
 const maybe = await secrets.get('lexware.api-token') // string | null
 ```
 
-- Same OIDC client and scope (`settings:read`) as the settings, separate
-  endpoint `GET /api/modules/settings/secrets`. The base derives tenant and
-  module from the token, so a module only ever gets its own secrets.
+- Same OIDC client as the settings, own scope `settings:secrets` and endpoint
+  `GET /api/modules/settings/secrets`. The base derives tenant and module from
+  the token and answers only for an active booking, so a module only ever
+  gets its own secrets.
+- Own entry `@reflagged/shell/secrets` (not in `core`/`settings`); its
+  `browser` condition resolves to a stub that throws on import. Still never
+  pass a secret as a prop to a client component or into a response.
 - Cached for 60 s (`ttlMs`); the last good values survive outages;
   `secrets.refresh()` reloads now (e.g. after the third-party API answered 401).
 - `ModuleSecretError.code`: `missing` (not set — tell the user to add it under
   Einstellungen → Module), `unavailable` (base not reachable, nothing cached),
+  `unreadable` (the base cannot decrypt: platform key missing or changed — the
+  last good values stay cached, this only surfaces without a cache),
   `unconfigured` (OIDC env missing), `browser`. Messages name the key, never the value.
 - Never log a secret, never send it to the browser.
 
